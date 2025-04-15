@@ -9,19 +9,27 @@ import matplotlib.pyplot as plt
 import pyfastchem  # The pyFastChem interface
 
 ##############################################################################
-# 1) Generate random compositions (H, O, C, N, S)
+# 1) Generate random compositions (H, O, C, N, S) in log scale
 ##############################################################################
 
 def generate_random_compositions(n_compositions=10, seed=42):
     """
     Returns a list of random compositions for H, O, C, N, S.
     Each composition is a dict like {'H': <float>, 'O': <float>, ...}.
+    
+    The input numbers are generated in log-space. Each element's log10 value is sampled
+    uniformly between -9 (i.e. 1e-9) and 0 (i.e. 1) exclusive. The resulting values are then
+    normalized so that their sum equals 1.
     """
     rng = np.random.default_rng(seed)
     compositions = []
+    # log10(lower bound) = -9 for 1e-9, upper bound = 0 for 1
+    lower_log, upper_log = -9, 0
     for _ in range(n_compositions):
-        vals = rng.random(5)    # random positive numbers
-        vals /= vals.sum()      # normalize so sum=1
+        # sample 5 numbers uniformly in log space
+        log_vals = rng.uniform(lower_log, upper_log, 5)
+        vals = 10**log_vals  # convert to linear space; results in values in [1e-9, 1)
+        vals /= vals.sum()   # normalize so that the sum equals 1
         comp = {
             'H': vals[0],
             'O': vals[1],
@@ -210,27 +218,46 @@ def run_pyfastchem_for_composition(
     return df_gas, df_cond, flag_arr
 
 ##############################################################################
-# 4) Find top-10 species for gas-phase
+# New helper: Normalize the gas-phase abundances for each grid point
+##############################################################################
+
+def normalize_gas_abundances(df_gas):
+    """
+    For the gas-phase DataFrame, normalize the species abundances so that for each row
+    (each T,P point) the sum of all species (excluding non-species columns) is 1.
+    """
+    df_norm = df_gas.copy()
+    # Identify columns that are NOT species abundances
+    non_species = {'temperature', 'pressure'}
+    non_species.update(c for c in df_norm.columns if c.startswith('comp_'))
+    species_cols = [c for c in df_norm.columns if c not in non_species]
+    
+    # Compute the row-wise sum over species columns
+    row_sum = df_norm[species_cols].sum(axis=1)
+    # Normalize each species column by the row sum
+    df_norm[species_cols] = df_norm[species_cols].div(row_sum, axis=0)
+    return df_norm
+
+##############################################################################
+# 4) Find top-10 species for gas-phase from normalized data
 ##############################################################################
 
 def find_top_10_species(df_gas):
     """
-    From the gas-phase DataFrame, find the top-10 species by max abundance.
+    From the normalized gas-phase DataFrame, find the top-10 species by maximum abundance.
     Ignores 'temperature', 'pressure', 'comp_...' columns.
     Returns a list of top-10 species names.
     """
-    non_sp = {'temperature','pressure'}
+    non_sp = {'temperature', 'pressure'}
     non_sp.update(c for c in df_gas.columns if c.startswith('comp_'))
     species_cols = [c for c in df_gas.columns if c not in non_sp]
 
     maxvals = {}
     for sp in species_cols:
         maxvals[sp] = df_gas[sp].max().item()
-    # for each species, find the max abundance across all grid points
-    # save the abundance to maxvals
-
+    # For each species, find the maximum (normalized) abundance across all grid points
     sorted_sp = sorted(maxvals.items(), key=lambda x: x[1], reverse=True)
-    # sort maxvals and find 10 highest element abundancies
+    # Find the 10 species with highest maximum normalized abundance
     top10 = [s for s, val in sorted_sp[:10]]
     return top10
 
@@ -249,13 +276,14 @@ def plot_species_vs_TP(df_gas, top_species, comp_index):
     tri = Triangulation(T, np.log10(P))  # map Pressure -> log10(P)
 
     for sp in top_species:
+        # Replace any zeros (which would cause log10 issues) with a small number
         abun = df_gas[sp].replace(0.0, 1e-99)
         log_abun = np.log10(abun)
 
         plt.figure()
         contour = plt.tricontourf(tri, log_abun, levels=20)
         cb = plt.colorbar(contour)
-        cb.set_label("log10(number_density)")
+        cb.set_label("log10(normalized number_density)")
         plt.xlabel("Temperature [K]")
         plt.ylabel("log10(P / bar)")
         plt.title(f"Comp {comp_index} - {sp}")
@@ -269,9 +297,9 @@ def plot_species_vs_TP(df_gas, top_species, comp_index):
 def main():
     print("\n===== Starting pyFastChem run =====")
 
-    # (1) Generate random compositions
+    # (1) Generate random compositions in log scale
     compositions = generate_random_compositions(n_compositions=10, seed=42)
-    print(f"Generated {len(compositions)} random compositions (H,O,C,N,S).")
+    print(f"Generated {len(compositions)} random compositions (H,O,C,N,S) in log scale.")
 
     # (2) Sample T,P: 20x20 => 400 points
     T_array, P_array = sample_temperature_pressure(
@@ -292,7 +320,7 @@ def main():
         print(f"\n=== Composition {i}/{len(compositions)-1} => {comp}")
         comp_start = time.time()
 
-        # (3) Run pyFastChem
+        # (3) Run pyFastChem for the current composition
         out_dir = f"results_comp{i}"
         df_gas, df_cond, flags = run_pyfastchem_for_composition(
             comp,
@@ -306,15 +334,18 @@ def main():
         df_gas['comp_index'] = i
         df_cond['comp_index'] = i
 
-        big_gas_list.append(df_gas)
+        # Normalize the gas-phase outputs so that the species abundances sum to 1 for each point
+        df_gas_normalized = normalize_gas_abundances(df_gas)
+
+        big_gas_list.append(df_gas_normalized)
         big_cond_list.append(df_cond)
 
-        # (4) Find top-10 gas species
-        top10 = find_top_10_species(df_gas)
+        # (4) Find top-10 gas species using the normalized abundances
+        top10 = find_top_10_species(df_gas_normalized)
         print(f"    -> Top-10 gas-phase species for comp {i}: {top10}")
 
-        # (5) Make plots
-        plot_species_vs_TP(df_gas, top10, comp_index=i)
+        # (5) Make plots for each of the top species
+        plot_species_vs_TP(df_gas_normalized, top10, comp_index=i)
 
         # Print how long this composition took
         comp_end = time.time()
@@ -329,7 +360,7 @@ def main():
     print("\n=== All compositions complete! ===")
     print(f"Total run time: {overall_end - overall_start:.2f} seconds.")
 
-    # If you want, you can save them to CSV:
+    # Optionally save to CSV:
     df_all_gas.to_csv("/Users/yashnilmohanty/Desktop/FastChem-Materials/tables/all_gas.csv", index=False)
     df_all_cond.to_csv("/Users/yashnilmohanty/Desktop/FastChem-Materials/tables/all_cond.csv", index=False)
 
