@@ -1,0 +1,63 @@
+FastChem Emulator – Version 1
+=============================
+
+This version includes two main Python scripts:
+
+──────────────────────────────────────────────
+1. newRun.py — Dataset Generation with pyFastChem
+──────────────────────────────────────────────
+
+Description:
+------------
+This script performs 4,000 independent chemical equilibrium simulations using the pyFastChem library. It is designed to systematically generate synthetic datasets for machine learning model training, using randomized compositions of five elements (H, O, C, N, S) and varying temperature-pressure (T-P) conditions.
+
+Key Features:
+-------------
+• Samples 10 random groups of 400 T-P-composition points each.
+• Automatically generates normalized gas-phase and condensed-phase datasets.
+• Identifies the top-10 gas-phase species per group based on peak abundance.
+• Generates detailed 2D plots (tri-contour plots) showing log10(abundance) vs. (T, log10(P)) for each top species.
+• Saves final results as CSV files (`all_gas.csv`, `all_cond.csv`) and plots to user-defined directories.
+• Total runtime: ~39.00 seconds (on local machine, no GPU used).
+• Output files used for downstream ML model training.
+
+──────────────────────────────────────────────
+2. surrogate.py — Neural Network Emulator
+──────────────────────────────────────────────
+
+Description:
+------------
+This script trains a surrogate neural network model to emulate FastChem's chemical equilibrium predictions. The model takes a 7-dimensional input (T, P, H, O, C, N, S) and predicts a 116-dimensional normalized output of gas-phase species.
+
+Key Features:
+-------------
+• Input: `all_gas1.csv` generated from `newRun.py`.
+• Preprocessing includes normalization and train/val/test splitting (60/15/25).
+• Neural network architecture:  
+  Input → Normalization → Dense(256) × 2 → Dense(128) → Dense(116, softmax)
+• Loss: Kullback-Leibler divergence (KLD)
+• Metrics: Mean Absolute Error (MAE), R² score
+• Evaluation includes both:
+   - Full-output MAE and R² across all 116 species
+   - Top-10 species MAE
+• Benchmarking:
+   - Inference time: ~X ms per sample
+   - Estimated speed-up vs. FastChem: ~230x (based on 0.17s per FastChem call)
+• Model and metadata saved to disk (`fastchem_emulator.keras`, `normalisation.json`)
+
+──────────────────────────────────────────────
+Usage Notes:
+------------
+• Ensure `pyfastchem`, `tensorflow`, `pandas`, and other required libraries are installed.
+• File paths (especially for `logK.dat`, `all_gas.csv`, etc.) must be updated based on your machine.
+• Both scripts assume you are running them from the root directory of the project.
+• Plot and table output directories will be created automatically if they do not exist.
+
+──────────────────────────────────────────────
+Author:
+-------
+Yashnil Mohanty  
+April 2025  
+github.com/yashnil/chemCalculations
+
+──────────────────────────────────────────────
