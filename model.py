@@ -160,7 +160,7 @@ def plot_pred_vs_true(y_test, y_pred, species_cols, n_species_to_plot=5):
 
 def main():
     # 1) Load & preprocess
-    df, species_cols = load_and_preprocess("/Users/yashnilmohanty/Desktop/FastChem-Materials/tables/all_gas.csv")
+    df, species_cols = load_and_preprocess("/Users/yashnilmohanty/Desktop/FastChem-Materials/tables/all_gas1.csv")
 
     # 2) Split data
     X_train, X_test, y_train, y_test = prepare_data_for_model(df, species_cols)
