@@ -4,7 +4,7 @@ FastChem Emulator – Version 1
 This version includes two main Python scripts:
 
 ──────────────────────────────────────────────
-1. newRun.py — Dataset Generation with pyFastChem
+1. generate_ds.py — Dataset Generation with pyFastChem
 ──────────────────────────────────────────────
 
 Description:
