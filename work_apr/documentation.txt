@@ -10,7 +10,7 @@ PROJECT OVERVIEW
 -----------------------------------------------------
 Goal:
 -----
-We aim to build a **fast, accurate neural network surrogate** for the FastChem equilibrium chemistry solver. FastChem calculates the equilibrium gas-phase species abundances for a given temperature (T), pressure (P), and elemental composition (H, O, C, N, S). While accurate, each FastChem run takes ~5.8 ms, making it expensive for large-scale Monte Carlo or retrieval applications.
+We aim to build a fast, accurate neural network surrogate for the FastChem equilibrium chemistry solver. FastChem calculates the equilibrium gas-phase species abundances for a given temperature (T), pressure (P), and elemental composition (H, O, C, N, S). While accurate, each FastChem run takes ~5.8 ms, making it expensive for large-scale Monte Carlo or retrieval applications.
 
 This project replaces FastChem with a surrogate neural network that:
 - Ingests: 7 inputs → [temperature, pressure, log-scaled comp_H, comp_O, comp_C, comp_N, comp_S]
@@ -97,6 +97,7 @@ STEP-BY-STEP DETAILS
     - `residual_TP_*.png`: error patterns in T-P space
     - `MAE_per_species.png`
     - `per_species_errors.csv`
+    - `sample_deviation.png`: mean absolute error per individual case  
 
 -----------------------------------------------------
 SUMMARY OF METRICS
