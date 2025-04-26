@@ -1,103 +1,117 @@
 FastChem-Surrogate Project – Technical Documentation
-=====================================================
+====================================================
 
 Author   : Yashnil Mohanty  
-Date     : April 25, 2025  
+Last edit: April 25 2025 (post-log-output update)  
 File     : documentation.txt  
 
 -----------------------------------------------------
 PROJECT OVERVIEW
 -----------------------------------------------------
-Goal:
------
-We aim to build a fast, accurate neural network surrogate for the FastChem equilibrium chemistry solver. FastChem calculates the equilibrium gas-phase species abundances for a given temperature (T), pressure (P), and elemental composition (H, O, C, N, S). While accurate, each FastChem run takes ~5.8 ms, making it expensive for large-scale Monte Carlo or retrieval applications.
+Goal
+----
+Develop a neural-network surrogate for the FastChem equilibrium solver
+that is ≥100× faster yet maintains milli-dex accuracy in the
+log-abundance domain.
 
-This project replaces FastChem with a surrogate neural network that:
-- Ingests: 7 inputs → [temperature, pressure, log-scaled comp_H, comp_O, comp_C, comp_N, comp_S]
-- Outputs: 116 gas-phase species abundances (normalized, ∑ = 1)
-- Matches FastChem accuracy (MAE ≤ 2e-3) at >100x speed
+Key specs
+---------
+- Inputs (7) : temperature [K], pressure [bar] (log₁₀-scaled),
+  log-scaled atomic fractions of H, O, C, N, S (log₁₀ + 9).
+- Outputs (116) : gas-phase species fractions (∑ = 1).
+- Target accuracy : Global MAE ≲ 2 × 10⁻³ in *linear* space **and**
+  bias-free parity in log space.
+- Speed : ≥100× faster than FastChem (single-point evaluation).
 
 -----------------------------------------------------
 PIPELINE SUMMARY
 -----------------------------------------------------
 
-| Step | Script                 | Purpose                                                        | Output Highlights                           |
-|------|------------------------|----------------------------------------------------------------|----------------------------------------------|
-| 0    | `generate_ds.py`       | Run 4,000 independent FastChem calls with randomized T, P, and composition | `tables/all_gas.csv`, 4000-point dataset |
-| 1    | `baseline_checks.py`   | Preprocess data, scale features, split train/val/test, benchmark FastChem | FastChem speed = 5.80 ms/pt               |
-| 2    | `train_baseline.py`    | Train basic 4-layer neural net for initial surrogate          | MAE = 2.19e-3, Speed-up = ×93.2             |
-| 3    | `tune.py`              | Run Optuna to find best architecture and learning rate        | Best MAE = 1.73e-3                          |
-| 4a   | `finalize.py`          | Retrain best model on full train+val data, report results     | Final MAE = 1.66e-3, Speed-up = ×159        |
-| 4b   | `final_train.py`       | Production-ready retraining + metadata output                 | Model card JSON + MAE = 1.77e-3             |
-| 5    | `diagnostics.py`       | Deep-dive error diagnostics + residual plots                  | Global MAE = 1.22e-3, R² = 0.975            |
+| Step | Script / file          | Purpose                                                    | Key results *after log-output fix*            |
+|------|------------------------|------------------------------------------------------------|-----------------------------------------------|
+| 0    | `generate_ds.py`       | Generate 4 000 FastChem samples (10×400 grid)              | `tables/all_gas.csv` (4 000 × 123)            |
+| 1    | `baseline_checks.py`   | Sanity checks, scaling, split, FastChem timing             | FastChem = **5.72 ms/pt**                     |
+| 2    | `train_baseline.py`    | 4-layer MLP baseline (linear→softmax loss)                 | MAE = **2.54 e-3**, R² = 0.862, ×107 speed-up |
+| 3    | `tune.py`              | Optuna hyper-param search (KLD loss, softmax outputs)      | Best val MAE = **1.97 e-3**                   |
+| 4a   | `finalize.py`          | Retrain best Optuna model on train+val                     | Test MAE = **1.68 e-3**, R² = 0.935, ×157     |
+| 4b   | `final_train.py`       | Production re-fit + metadata (softmax, KLD)                | Test MAE = **2.05 e-3**, R² = 0.920, ×104     |
+| 5    | `diagnostics.py`       | Global / per-species / residual plots (linear + log)       | Global MAE = **1.62 e-3**, R² = 0.954         |
+| —    | `losses.py` *(NEW)*    | House-kept custom loss fns (e.g. log-MSE, lin-MSE hybrid)  | Imported where `model.compile(loss=...)`      |
 
 -----------------------------------------------------
-STEP-BY-STEP DETAILS
+DETAILED STEP-BY-STEP
 -----------------------------------------------------
 
-0. `generate_ds.py`
+0  `generate_ds.py`
+-------------------
+* Random T ∈ [100, 3000] K; log₁₀(P/bar) ∈ [-10, +5].
+* Elemental ratios log-uniform 1 e-9…1, normalised to ∑ = 1.
+* Saves gas & condensed outputs; normalises each row.
+* Plots top-10 species per group (tri-contour in log₁₀ space).
+
+1  `baseline_checks.py`
+-----------------------
+* Validates no NaNs / inf; checks ∑ species = 1 (±3 × 10⁻¹⁴).
+* Feature engineering: pressure → log₁₀(P), elements → log₁₀+9.
+* Stratified 60 / 24 / 16 split with `train_test_split`.
+* Writes `input_scaler.pkl`, `splits.npz`.
+* **FastChem latency** = 5.72 ms (1 000 random points).
+
+2  `train_baseline.py`
+----------------------
+* MLP (256-256-128-softmax), GELU, KL-divergence loss.
+* **Test**: MAE 2.54 × 10⁻³, weighted R² 0.862.
+* **Speed-up**: 0.054 ms vs 5.72 ms → ×107.
+
+3  `tune.py`
+------------
+* Search space: layers (2–5), units {128,256,512}, act {gelu,swish},
+  lr ∈ [1e-4, 3e-3].
+* Best: 5×128 Swish, lr ≈ 2.33 × 10⁻³.
+* Validation MAE 1.97 × 10⁻³.
+
+4a  `finalize.py`
+-----------------
+* Retrains best config on train+val (linear softmax / KLD).
+* **Hold-out test**: MAE 1.68 × 10⁻³, R² 0.935.
+* Latency 0.036 ms → **×157 faster**.
+* Outputs `final_model.keras`, `final_report.json`.
+
+4b  `final_train.py`
 --------------------
-- Samples 10 groups × 400 points = **4,000 evaluations**
-- T ∈ [100, 3000] K, log₁₀(P) ∈ [-10, +5]
-- Elemental ratios log-uniform ∈ [1e-9, 1]
-- Normalizes species, plots top-10 by abundance for each group
-- Output: `tables/all_gas.csv` + PNG plots
+* Same architecture, 5 % internal val split.
+* Test MAE 2.05 × 10⁻³, R² 0.920, speed-up ×104.
+* Writes `surrogate_final.keras`, `model_card.json`.
 
-1. `baseline_checks.py`
--------------------------
-- Verifies dataset sanity (NaNs, infinities, ∑ species = 1)
-- Scales: log₁₀(P), log₁₀(comp_i) + 9
-- Splits data 60/24/16 into train/val/test
-- Benchmarks FastChem latency on 1000 points: **5.80 ms**
-- Output: `artefacts/input_scaler.pkl`, `splits.npz`, histograms
+5  `diagnostics.py`
+-------------------
+* Converts model log outputs → linear space, renormalises.
+* Global: MAE 1.62 × 10⁻³, R² 0.954 (full 4 000-point set).
+* Generates:
+  - `parity_top10.png` (log-log & lin-lin toggle supported)
+  - `residual_TP_<species>.png`
+  - `MAE_per_species.png`
+  - `per_species_errors.csv`
+  - `sample_deviation.png` (now % error, (pred-true)/true ×100)
 
-2. `train_baseline.py`
-------------------------
-- 256–256–128–softmax MLP with GELU activation
-- Trained with KL-divergence loss, early stopping
-- Test set: MAE = 2.19e-3, weighted R² = 0.924
-- Inference time: **0.062 ms/pt** → ×93 speed-up vs FastChem
-- Output: `baseline_model.keras`, training history, TensorBoard logs
+`losses.py`
+-------------------
+```python
+import tensorflow as tf
+EPS = 1e-12
 
-3. `tune.py`
--------------
-- Uses Optuna to search:
-    - `n_layers`: 2–5
-    - `units`: {128, 256, 512}
-    - `activation`: {gelu, swish}
-    - `lr`: log-uniform [1e-4, 3e-3]
-- Best trial: 5 layers × 128 units, swish, lr ≈ 6.26e-4
-- Validation MAE: **1.73e-3**
-- Output: `artefacts/optuna_study.pkl`
+def log_mse(y_true, y_pred_log):
+    """MSE in log₁₀ space (assumes y_pred already log₁₀)."""
+    y_true_log = tf.math.log(tf.clip_by_value(y_true, EPS, 1.0)) / tf.math.log(10.0)
+    return tf.reduce_mean(tf.square(y_true_log - y_pred_log))
 
-4a. `finalize.py`
-------------------
-- Retrains the best model on train+val, tests on holdout set
-- Test MAE = 1.66e-3, weighted R² = 0.943
-- Inference: **0.037 ms** → ×159 faster than FastChem
-- Output: `final_model.keras`, `final_report.json`
+def hybrid_loss(y_true, y_pred_log, w_lin=0.5):
+    """0.5×MSE(linear) + 0.5×MSE(log)."""
+    y_pred_lin = tf.clip_by_value(10.0 ** y_pred_log, EPS, 1.0)
+    mse_lin = tf.reduce_mean(tf.square(y_true - y_pred_lin))
+    mse_log = log_mse(y_true, y_pred_log)
+    return w_lin * mse_lin + (1.0 - w_lin) * mse_log
 
-4b. `final_train.py`
----------------------
-- Uses Optuna study to retrieve best hyperparameters
-- Adds 5% validation split during training
-- Final test metrics: MAE = 1.77e-3, R² = 0.939
-- Latency = 0.054 ms → ×100 faster than FastChem
-- Output: `surrogate_final.keras`, `model_card.json`
-
-5. `diagnostics.py`
----------------------
-- Loads final model + all data for full diagnostics
-- Computes:
-    - Global MAE = 1.22e-3
-    - Weighted R² = 0.975
-    - MAE and R² per species
-- Generates:
-    - `parity_top10.png`: true vs predicted for 10 most abundant species
-    - `residual_TP_*.png`: error patterns in T-P space
-    - `MAE_per_species.png`
-    - `per_species_errors.csv`
-    - `sample_deviation.png`: mean absolute error per individual case  
 
 -----------------------------------------------------
 SUMMARY OF METRICS
@@ -105,24 +119,26 @@ SUMMARY OF METRICS
 
 | Model          | Test MAE | R²     | Latency (ms) | Speed-up |
 |----------------|----------|--------|--------------|----------|
-| Baseline       | 2.19e-3  | 0.924  | 0.062        | ×93.2    |
-| Optuna best    | 1.73e-3  | -      | -            | -        |
-| Final (4a)     | 1.66e-3  | 0.943  | 0.037        | ×159     |
-| Final (4b)     | 1.77e-3  | 0.939  | 0.054        | ×100     |
-| Diagnostics    | 1.22e-3  | 0.975  | full-data    | -        |
+| Baseline       | 2.54e-3  | 0.862  | 0.054        | ×107     |
+| Optuna best    | 1.97e-3  | -      | -            | -        |
+| Final (4a)     | 1.68e-3  | 0.935  | 0.036        | ×157     |
+| Final (4b)     | 2.05e-3  | 0.920  | 0.055        | ×104     |
+| Diagnostics    | 1.62e-3  | 0.954  | full-data    | -        |
 
 -----------------------------------------------------
 REPRODUCING THE PIPELINE
 -----------------------------------------------------
 
-```bash
-# Install dependencies
-pip install tensorflow optuna scikit-learn pandas matplotlib seaborn joblib
+# 0.  Environment
+conda create -n fastchem_nn python=3.9
+conda activate fastchem_nn
+pip install tensorflow==2.15 optuna scikit-learn pandas matplotlib seaborn joblib
 
-# Then run in order:
+# 1.  Run the pipeline in order
 python generate_ds.py
-python baseline_checks.py
+python baseline_checks.py      # generates scaler & splits
 python train_baseline.py
-python tune.py
-python finalize.py          # or: python final_train.py
+python tune.py                 # writes optuna_study.pkl
+python final_train.py
+python finalize.py             
 python diagnostics.py
