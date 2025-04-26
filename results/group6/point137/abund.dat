@@ -1,7 +1,7 @@
 # Custom abundance file for pyFastChem
 e-  0.0
 H   12.0000
-O   16.6517
-C   16.9514
-N   17.1954
-S   10.9323
+O   10.8030
+C   9.8314
+N   9.6931
+S   10.7249
