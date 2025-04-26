@@ -62,7 +62,7 @@ model.add(keras.layers.Dense(len(SPECIES), activation="softmax"))
 
 model.compile(
     optimizer=keras.optimizers.Adam(best["lr"]),
-    loss=composite_loss(lambda_=0.7),  # <-- single change                          # aliases “kullback_leibler_divergence”
+    loss=composite_loss(lambda_=0.7),  # <-- single change                    
     metrics=[keras.metrics.MeanAbsoluteError(name="mae")]
 )
 
@@ -93,9 +93,9 @@ r2     = r2_score(Y_test, Y_pred, multioutput="variance_weighted")
 print(f"Test‑set  MAE={mae:.4e}   weighted R²={r2:.3f}")
 
 # ---------------------------------------------------------------
-# 6.  Inference‑time benchmark  (compare with 5.40 ms FastChem)
+# 6.  Inference‑time benchmark  (compare with 5.72 ms FastChem)
 # ---------------------------------------------------------------
-FASTCHEM_MS = 5.40
+FASTCHEM_MS = 5.72
 N_BENCH     = min(1000, len(X_test))
 bench_idx   = np.random.choice(len(X_test), N_BENCH, replace=False)
 x_bench     = X_test[bench_idx]

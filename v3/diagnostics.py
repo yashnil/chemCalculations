@@ -27,7 +27,7 @@ os.makedirs(OUT_DIR, exist_ok=True)
 # ──────────────────────────────────────────────────────────────────────────
 df       = pd.read_csv(CSV_PATH)
 scaler   = joblib.load(SCALER_PKL)
-model    = keras.models.load_model(MODEL_PATH)
+model    = keras.models.load_model(MODEL_PATH, compile=False)
 
 with open(CARD_JSON) as fh:
     card = json.load(fh)

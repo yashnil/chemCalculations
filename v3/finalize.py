@@ -27,7 +27,7 @@ from losses import composite_loss
 X_train, X_val, X_test, Y_train, Y_val, Y_test, scaler, species_cols = load_XY()
 N_OUT = len(species_cols)
 
-best = dict(n_layers=5, units=128, act="swish", lr=6.26391e-4)
+best = dict(n_layers=5, units=128, act="swish", lr=0.0023341523954030887)
 print("Best hyper‑parameters from Optuna:", best)
 
 # merge train+val for the final fit
@@ -84,7 +84,7 @@ _ = model.predict(x_bench[:16], batch_size=16, verbose=0)
 t0 = time.time(); _ = model.predict(x_bench, batch_size=256, verbose=0)
 nn_ms = (time.time()-t0)/N_BENCH * 1e3
 
-FASTCHEM_BENCH_MS = 5.80                          # from step‑1
+FASTCHEM_BENCH_MS = 5.72                        # from step‑1
 speedup = FASTCHEM_BENCH_MS / nn_ms
 print(f"Inference latency : {nn_ms:.3f} ms / sample")
 print(f"Speed‑up vs FastChem: ×{speedup:,.1f}")
