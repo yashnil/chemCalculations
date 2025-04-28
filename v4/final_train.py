@@ -93,9 +93,9 @@ r2     = r2_score(Y_test, Y_pred, multioutput="variance_weighted")
 print(f"Test‑set  MAE={mae:.4e}   weighted R²={r2:.3f}")
 
 # ---------------------------------------------------------------
-# 6.  Inference‑time benchmark  (compare with 5.72 ms FastChem)
+# 6.  Inference‑time benchmark  (compare with 5.49 ms FastChem)
 # ---------------------------------------------------------------
-FASTCHEM_MS = 5.72
+FASTCHEM_MS = 5.49
 N_BENCH     = min(1000, len(X_test))
 bench_idx   = np.random.choice(len(X_test), N_BENCH, replace=False)
 x_bench     = X_test[bench_idx]
