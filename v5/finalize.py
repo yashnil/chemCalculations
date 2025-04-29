@@ -47,7 +47,7 @@ model.add(keras.layers.Dense(N_OUT, activation="softmax"))
 
 model.compile(
     optimizer=keras.optimizers.Adam(best["lr"]),
-    loss=composite_loss("lam"), 
+    loss=composite_loss(best["lam"]), 
     metrics=[keras.metrics.MeanAbsoluteError(name="mae_lin")]
 )
 

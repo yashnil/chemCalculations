@@ -40,8 +40,9 @@ Y = df[SPECIES].values.astype("float32")
 
 n_train = split["train_idx"].item()
 n_val   = split["val_idx"].item()
-X_train, Y_train = X[:n_train+n_val], Y[:n_train+n_val]   # train+val
-X_test,  Y_test  = X[n_train+n_val:], Y[n_train+n_val:]   # held‑out test
+X_train, Y_train = X[:n_train], Y[:n_train]
+X_val,   Y_val   = X[n_train:n_train+n_val], Y[n_train:n_train+n_val]
+X_test,  Y_test  = X[n_train+n_val:], Y[n_train+n_val:]
 
 print(f"Train+val : {X_train.shape[0]}   Test : {X_test.shape[0]}")
 
@@ -62,7 +63,7 @@ model.add(keras.layers.Dense(len(SPECIES), activation="softmax"))
 
 model.compile(
     optimizer=keras.optimizers.Adam(best["lr"]),
-    loss=composite_loss(),                    
+    loss=composite_loss(best["lam"]),                    
     metrics=[keras.metrics.MeanAbsoluteError(name="mae")]
 )
 
@@ -74,7 +75,7 @@ model.summary()
 t0 = time.time()
 hist = model.fit(
     X_train, Y_train,
-    validation_split=0.05,          # sliver to watch for over‑fit
+    validation_data=(X_val, Y_val),
     epochs=500,
     batch_size=128,
     verbose=2,

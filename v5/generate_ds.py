@@ -13,7 +13,7 @@ import pyfastchem  # The pyFastChem interface
 # ────────────────────────────────────────────────────────────
 # USER CONFIG – dataset size and sampling strategy
 # ────────────────────────────────────────────────────────────
-N_GROUPS        = 20          # was 10         → 40 k samples total
+N_GROUPS        = 20          # was 10         → 20 k samples total
 N_PER_GROUP     = 1000        # was 400
 STRATIFY_GRID   = True        # False ⇒ keep pure-random
 N_T_BINS        = 20          # only used if STRATIFY_GRID = True
