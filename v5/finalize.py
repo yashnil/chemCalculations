@@ -27,8 +27,9 @@ from losses import composite_loss
 X_train, X_val, X_test, Y_train, Y_val, Y_test, scaler, species_cols = load_XY()
 N_OUT = len(species_cols)
 
-best = dict(n_layers=4, units=256, act="gelu", lr=0.0024954034484435794, lam=0.727680822081647)
-print("Best hyper‑parameters from Optuna:", best)
+study  = joblib.load("artefacts/optuna_study.pkl")
+best   = study.best_params
+print("Best hyper-parameters from Optuna:", best)
 
 # merge train+val for the final fit
 X_final = np.vstack([X_train, X_val])
@@ -46,8 +47,8 @@ model.add(keras.layers.Dense(N_OUT, activation="softmax"))
 
 model.compile(
     optimizer=keras.optimizers.Adam(best["lr"]),
-    loss=composite_loss(), 
-    metrics=[keras.metrics.MeanAbsoluteError(name="mae")]
+    loss=composite_loss("lam"), 
+    metrics=[keras.metrics.MeanAbsoluteError(name="mae_lin")]
 )
 
 # ───────────────────────────────────────────────────────────────────────
@@ -84,7 +85,7 @@ _ = model.predict(x_bench[:16], batch_size=16, verbose=0)
 t0 = time.time(); _ = model.predict(x_bench, batch_size=256, verbose=0)
 nn_ms = (time.time()-t0)/N_BENCH * 1e3
 
-FASTCHEM_BENCH_MS = 5.49
+FASTCHEM_BENCH_MS = 6.42
 speedup = FASTCHEM_BENCH_MS / nn_ms
 print(f"Inference latency : {nn_ms:.3f} ms / sample")
 print(f"Speed‑up vs FastChem: ×{speedup:,.1f}")
