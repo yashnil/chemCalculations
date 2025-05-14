@@ -2,10 +2,6 @@
 #!/usr/bin/env python3
 # step 1 -> baseline_checks.py
 
-"""
-baseline_checks.py  –  Step‑1 sanity & timing for the FastChem surrogate project
-(adapted to column names: comp_H, comp_O, comp_C, comp_N, comp_S)
-"""
 
 import os, time, joblib, numpy as np, pandas as pd, matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
@@ -20,7 +16,7 @@ ARTE_DIR   = "artefacts"
 os.makedirs(ARTE_DIR, exist_ok=True)
 
 # ──────────────────────────────────────────────────────────────────────────
-# 1‑A  • Load & numeric sanity
+# 1‑A Load & numeric sanity
 # ──────────────────────────────────────────────────────────────────────────
 df = pd.read_csv(CSV_PATH)
 print("\nLoaded", CSV_PATH, "shape =", df.shape)
@@ -39,7 +35,7 @@ err = (df[species_cols].sum(axis=1) - 1.0).abs().max()
 print(f"Species fractions: max|Σ−1| = {err:.3e}")
 
 # ──────────────────────────────────────────────────────────────────────────
-# 1‑B  • Histograms
+# 1‑B Histograms
 # ──────────────────────────────────────────────────────────────────────────
 fig, ax = plt.subplots(1, 2, figsize=(9, 3))
 df["temperature"].hist(bins=40, ax=ax[0]);              ax[0].set_title("Temperature")
@@ -48,7 +44,7 @@ plt.tight_layout(); plt.savefig("input_histograms.png", dpi=150)
 print("Saved histogram → input_histograms.png")
 
 # ──────────────────────────────────────────────────────────────────────────
-# 1‑C  • Feature scaling (pressure→log10, elements→log10+9)
+# 1‑C Feature scaling (pressure→log10, elements→log10+9)
 # ──────────────────────────────────────────────────────────────────────────
 X = df[["temperature", "pressure", *ELEMENT_COLS]].copy()
 X["pressure"] = np.log10(X["pressure"])
@@ -58,7 +54,7 @@ for col in ELEMENT_COLS:
 Y = df[species_cols].values.astype("float32")
 
 # ──────────────────────────────────────────────────────────────────────────
-# 1‑D  • Train/val/test split  (60/15/25 from guide)
+# 1‑D Train/val/test split  (60/15/25 from guide)
 # ──────────────────────────────────────────────────────────────────────────
 X_train, X_tmp, Y_train, Y_tmp = train_test_split(
         X, Y, test_size=0.40, random_state=42, shuffle=True)
@@ -80,7 +76,7 @@ np.savez(os.path.join(ARTE_DIR, "splits.npz"),
 print("Scaler & split indices saved to ./artefacts")
 
 # ──────────────────────────────────────────────────────────────────────────
-# 1‑E  • FastChem latency benchmark
+# 1‑E FastChem latency benchmark
 # ──────────────────────────────────────────────────────────────────────────
 def fastchem_single_point(row):
     """Run FastChem once; result is discarded – we only measure wall‑time."""
@@ -110,4 +106,4 @@ t0 = time.time()
 for idx in sample_idx:
     fastchem_single_point(df.iloc[idx])
 fastchem_ms = (time.time() - t0) / R * 1e3
-print(f"\n⏱️  FastChem benchmark  →  {fastchem_ms:.2f} ms per point ({R} samples)")
+print(f"\nFastChem benchmark  →  {fastchem_ms:.2f} ms per point ({R} samples)")
