@@ -4,23 +4,20 @@
 import os, warnings, joblib, optuna, numpy as np, tensorflow as tf
 from tensorflow import keras
 from sklearn.metrics import mean_absolute_error
-from utils import load_XY                        # step‑1 helper
+from utils import load_XY
 from losses import composite_loss
 
-# ────────────────────────────────────────────────────────────────────────
-# load the data once
-# ────────────────────────────────────────────────────────────────────────
 X_train, X_val, X_test, Y_train, Y_val, Y_test, scaler, species_cols = load_XY()
 N_OUT = len(species_cols)
 
-os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"        # quiet TensorFlow
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
 warnings.filterwarnings("ignore", category=UserWarning, module="optuna")
 
 # ────────────────────────────────────────────────────────────────────────
 # objective
 # ────────────────────────────────────────────────────────────────────────
 def objective(trial: optuna.trial.Trial) -> float:
-    #   ⚠️  clear graph to avoid variable‑name clashes
+    # clear graph to avoid clashes
     keras.backend.clear_session()
 
     n_layers = trial.suggest_int("n_layers", 2, 5)
@@ -53,7 +50,7 @@ def objective(trial: optuna.trial.Trial) -> float:
 
     y_pred = model.predict(X_val, batch_size=256, verbose=0)
     mae    = mean_absolute_error(Y_val, y_pred)
-    return mae                                    # Optuna minimises this
+    return mae
 
 # ────────────────────────────────────────────────────────────────────────
 # run Optuna – catch TF errors so the study keeps going
@@ -62,7 +59,7 @@ study = optuna.create_study(direction="minimize")
 study.optimize(
     objective,
     n_trials=40,
-    catch=(tf.errors.InvalidArgumentError,)       # ← extra safety net
+    catch=(tf.errors.InvalidArgumentError,) # safety net in case optuna misses mae
 )
 
 print("\nBest hyper‑parameters:")

@@ -2,23 +2,10 @@
 #!/usr/bin/env python3
 # step 4a -> finalize.py
 
-"""
-step4_finalize.py  –  train the final surrogate with best Optuna params
-                      and benchmark it against FastChem.
-
-Inputs   • artefacts/optuna_study.pkl   (from step‑3)
-         • artefacts/input_scaler.pkl   (from step‑1)
-         • artefacts/splits.npz
-         • tables/all_gas.csv
-
-Outputs  • artefacts/final_model.keras
-         • artefacts/final_report.json
-"""
-
 import os, json, time, joblib, numpy as np, pandas as pd, tensorflow as tf
 from tensorflow import keras
 from sklearn.metrics import mean_absolute_error, r2_score
-from utils import load_XY                         # ← step‑1 helper
+from utils import load_XY
 from losses import composite_loss
 
 # ───────────────────────────────────────────────────────────────────────
@@ -36,7 +23,7 @@ X_final = np.vstack([X_train, X_val])
 Y_final = np.vstack([Y_train, Y_val])
 
 # ───────────────────────────────────────────────────────────────────────
-# 2. Re‑build the best model
+# 2. Rebuild the best model
 # ───────────────────────────────────────────────────────────────────────
 keras.backend.clear_session()
 
@@ -64,7 +51,7 @@ model.fit(
 )
 
 # ───────────────────────────────────────────────────────────────────────
-# 4. One‑shot evaluation on the untouched test split
+# 4. Evaluation on the untouched test split
 # ───────────────────────────────────────────────────────────────────────
 Y_pred = model.predict(X_test, batch_size=256, verbose=0)
 mae_test = mean_absolute_error(Y_test, Y_pred)
@@ -107,5 +94,5 @@ report = {
 with open("artefacts/final_report.json", "w") as fh:
     json.dump(report, fh, indent=2)
 
-print("\n✔️  Saved   • artefacts/final_model.keras"
-      "\n           • artefacts/final_report.json")
+print("\n✔️  Saved   artefacts/final_model.keras"
+      "\n           artefacts/final_report.json")

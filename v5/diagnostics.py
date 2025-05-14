@@ -9,24 +9,22 @@ import numpy as np, pandas as pd, matplotlib.pyplot as plt, seaborn as sns
 from sklearn.metrics import mean_absolute_error, r2_score
 from tensorflow import keras
 
-# ───────────────────────── user paths ──────────────────────────
 ARTE_DIR  = "artefacts"
 CSV_PATH  = "/Users/yashnilmohanty/Desktop/FastChem-Materials/tables/all_gas.csv"
 
-MODEL_PATH = os.path.join(ARTE_DIR, "surrogate_final.keras")   # change if you wish
+MODEL_PATH = os.path.join(ARTE_DIR, "surrogate_final.keras")
 SCALER_PKL = os.path.join(ARTE_DIR, "input_scaler.pkl")
 CARD_JSON  = os.path.join(ARTE_DIR, "model_card.json")
 
 OUT_DIR = os.path.join(ARTE_DIR, "diagnostics")
 os.makedirs(OUT_DIR, exist_ok=True)
 
-# ───────────────────────── constants ──────────────────────────
 EPS   = 1e-12
-CLIP  = 1e-10     # floor for log–log plotting
+CLIP  = 1e-10
 LOG10 = np.log(10.0)
 
 # ----------------------------------------------------------------------
-# 1.  Load data, model, scaler
+# 1.  Load data
 # ----------------------------------------------------------------------
 df       = pd.read_csv(CSV_PATH)
 scaler   = joblib.load(SCALER_PKL)
@@ -38,7 +36,6 @@ with open(CARD_JSON) as fh:
 INPUTS   = card["inputs"]        # 7 inputs
 SPECIES  = card["outputs"]       # 116 outputs
 
-# ----- prepare inputs exactly as during training -----------------------
 X = df[INPUTS].copy()
 X["pressure"] = np.log10(X["pressure"])
 for el in ["comp_H", "comp_O", "comp_C", "comp_N", "comp_S"]:
@@ -51,7 +48,6 @@ t0 = time.time()
 Y_pred = model.predict(X, batch_size=256, verbose=0)
 print(f"Predicted {len(X):,} samples in {time.time()-t0:.1f} s")
 
-# ----- force non-negative & re-normalise (∑=1) -------------------------
 Y_pred = np.maximum(Y_pred, 0.0)
 Y_pred /= Y_pred.sum(axis=1, keepdims=True) + EPS
 
@@ -138,7 +134,7 @@ plt.bar(np.arange(len(SPECIES)), tbl["MAE"].values[rank], color=colors)
 plt.xticks(np.arange(len(SPECIES)), tbl["species"].values[rank],
            rotation=90, fontsize=6)
 plt.ylabel("MAE")
-plt.title("Per-species MAE (colour = log₁₀ max abundance)")
+plt.title("Per-species MAE (colour = log10 max abundance)")
 plt.tight_layout()
 plt.savefig(os.path.join(OUT_DIR, "MAE_per_species.png"), dpi=180)
 plt.close()
@@ -173,8 +169,8 @@ ax[0].set_ylim(0, 1); ax[0].set_title("Cumulative MAE curve")
 
 # (b) abundance vs error
 ax[1].scatter(np.log10(tbl["max_abun"]), np.log10(tbl["MAE"]), s=30, alpha=0.7)
-ax[1].set_xlabel("log₁₀ max(abundance)")
-ax[1].set_ylabel("log₁₀ MAE")
+ax[1].set_xlabel("log10 max(abundance)")
+ax[1].set_ylabel("log10 MAE")
 ax[1].set_title("Abundance vs MAE")
 
 plt.tight_layout()

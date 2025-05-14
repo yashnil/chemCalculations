@@ -2,36 +2,19 @@
 #!/usr/bin/env python3
 # step 2 -> train_baseline.py
 
-"""
-step2_train_baseline.py  –  baseline surrogate for FastChem
-
-Inputs  (from step 1)
-  • all_gas.csv   (or all_gas1.csv – just keep the path below consistent)
-  • artefacts/input_scaler.pkl
-  • artefacts/splits.npz
-
-Outputs
-  • artefacts/baseline_model.keras
-  • artefacts/history.json
-  • metrics printed to console
-"""
-
 import os, json, time, joblib, numpy as np, pandas as pd, tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras.losses import KLDivergence
 from sklearn.metrics import mean_absolute_error, r2_score
 from losses import composite_loss, _mae_log
 
-# ───────────────────────────────────────────────────────────────────────────
-# paths – change if your directories differ
-# ───────────────────────────────────────────────────────────────────────────
 CSV_PATH = "/Users/yashnilmohanty/Desktop/FastChem-Materials/tables/all_gas.csv"
 ARTE_DIR = "artefacts"                            # already created by step 1
 MODEL_OUT = os.path.join(ARTE_DIR, "baseline_model.keras")
 HIST_OUT  = os.path.join(ARTE_DIR, "history.json")
 
 # ───────────────────────────────────────────────────────────────────────────
-# 1) load data, scaler, and split indices
+# 1) Load data
 # ───────────────────────────────────────────────────────────────────────────
 df     = pd.read_csv(CSV_PATH)
 scaler = joblib.load(os.path.join(ARTE_DIR, "input_scaler.pkl"))
@@ -52,7 +35,7 @@ X = scaler.transform(X).astype("float32")
 # --- construct Y ----------------------------------------------------------
 Y = df[SPECIES].values.astype("float32")   # already normalised fractions
 
-# --- recover the *absolute* sizes of each split --------------------------
+# --- recover the abs sizes of each split --------------------------
 n_train = split["train_idx"].item()
 n_val   = split["val_idx"].item()
 
@@ -63,7 +46,7 @@ X_test,  Y_test  = X[n_train+n_val:],      Y[n_train+n_val:]
 print(f"Loaded → train:{X_train.shape[0]}, val:{X_val.shape[0]}, test:{X_test.shape[0]}")
 
 # ───────────────────────────────────────────────────────────────────────────
-# 2) model architecture
+# 2) model
 # ───────────────────────────────────────────────────────────────────────────
 model = keras.Sequential([
     keras.layers.Input(shape=(7,)),
@@ -111,7 +94,7 @@ print(f"\nTest‑set  MAE={mae:.4e}   weighted R²={r2:.3f}")
 # ───────────────────────────────────────────────────────────────────────────
 # 4 b)  runtime benchmark – compare with FastChem (6.42 ms / point)
 # ───────────────────────────────────────────────────────────────────────────
-# ── runtime benchmark – compare with FastChem (6.42 ms / point) ──────────
+
 MAX_BENCH = 1_000
 N_BENCH   = min(MAX_BENCH, len(X_test))      # never exceed test‑set size
 

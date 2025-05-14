@@ -8,21 +8,15 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-import pyfastchem  # The pyFastChem interface
+import pyfastchem
 
-# ────────────────────────────────────────────────────────────
-# USER CONFIG – dataset size and sampling strategy
-# ────────────────────────────────────────────────────────────
-N_GROUPS        = 20          # was 10         → 20 k samples total
-N_PER_GROUP     = 1000        # was 400
+N_GROUPS        = 20          # 20 k samples total
+N_PER_GROUP     = 1000        
 STRATIFY_GRID   = True        # False ⇒ keep pure-random
 N_T_BINS        = 20          # only used if STRATIFY_GRID = True
 N_P_BINS        = 20
-# ────────────────────────────────────────────────────────────
 
-##############################################################################
 # 1) Generate a single random composition (H, O, C, N, S) in log scale
-##############################################################################
 
 def generate_single_composition():
     """
@@ -43,9 +37,7 @@ def generate_single_composition():
         'S': vals[4],
     }
 
-##############################################################################
-# 2) Write a custom abundance file for each composition
-##############################################################################
+# 2) Write an abundance file for each composition
 
 def write_custom_abundance_file(comp, filename="custom_abund.dat"):
     """
@@ -58,13 +50,12 @@ def write_custom_abundance_file(comp, filename="custom_abund.dat"):
 
     def ratio_to_logX(elem_ratio):
         if elem_ratio <= 0:
-            return -999.0  # effectively zero abundance
+            return -999.0  # zero abundance
         return 12.0 + np.log10(elem_ratio / h_ratio)
 
-    # Build lines
     lines = [
         "# Custom abundance file for pyFastChem",
-        "e-  0.0",  # dummy electron abundance
+        "e-  0.0",
         f"H   {ratio_to_logX(comp['H']):.4f}",
         f"O   {ratio_to_logX(comp['O']):.4f}",
         f"C   {ratio_to_logX(comp['C']):.4f}",
@@ -74,9 +65,7 @@ def write_custom_abundance_file(comp, filename="custom_abund.dat"):
     with open(filename, 'w') as f:
         f.write("\n".join(lines) + "\n")
 
-##############################################################################
 # 3) Run pyFastChem for a single independent evaluation point
-##############################################################################
 
 def run_pyfastchem_for_composition(comp, T_array, P_array, out_dir="results", condensates=True):
     """
@@ -91,7 +80,6 @@ def run_pyfastchem_for_composition(comp, T_array, P_array, out_dir="results", co
     abundance_file = os.path.join(out_dir, "abund.dat")
     write_custom_abundance_file(comp, abundance_file)
 
-    # Adjust these paths to your actual file locations
     logK_path = "/Users/yashnilmohanty/Downloads/FastChem-master/input/logK/logK.dat"
     cond_path = "/Users/yashnilmohanty/Downloads/FastChem-master/input/logK/logK_condensates.dat"
 
@@ -116,7 +104,7 @@ def run_pyfastchem_for_composition(comp, T_array, P_array, out_dir="results", co
             1
         )
 
-    # Build input (T_array and P_array are assumed to be 1-element arrays)
+    # Build input
     input_data = pyfastchem.FastChemInput()
     input_data.temperature = T_array
     input_data.pressure    = P_array
@@ -142,14 +130,7 @@ def run_pyfastchem_for_composition(comp, T_array, P_array, out_dir="results", co
     if fastchem_flag != 0:
         msg = pyfastchem.FASTCHEM_MSG[fastchem_flag]
         print(f"    [Warning] fastchem_flag={fastchem_flag} => {msg} for composition {comp}")
-
-    # Build the gas-phase DataFrame
     
-    # ------------------------------------------------------------------
-    # FastChem occasionally returns NaNs if it didn’t converge 100 %.
-    # Replace any NaN / ±Inf with 0.0 so the downstream normalisation
-    # (and baseline_checks) never see non-finite numbers.
-    # ------------------------------------------------------------------
     nd_gas = np.array(output_data.number_densities, dtype=np.float64)
     nd_gas = np.nan_to_num(nd_gas, nan=0.0, posinf=0.0, neginf=0.0)
 
@@ -174,9 +155,7 @@ def run_pyfastchem_for_composition(comp, T_array, P_array, out_dir="results", co
 
     return df_gas, df_cond, flag_arr
 
-##############################################################################
-# New helper: Normalize the gas-phase abundances for each evaluation point
-##############################################################################
+# Normalize the gas-phase abundances for each evaluation point
 
 def normalize_gas_abundances(df_gas):
     """
@@ -188,14 +167,11 @@ def normalize_gas_abundances(df_gas):
     non_species.update(c for c in df_norm.columns if c.startswith('comp_'))
     species_cols = [c for c in df_norm.columns if c not in non_species]
     row_sum = df_norm[species_cols].sum(axis=1)
-    # Avoid division by zero by replacing zeros with 1 (if any)
     row_sum[row_sum == 0] = 1.0
     df_norm[species_cols] = df_norm[species_cols].div(row_sum, axis=0)
     return df_norm
 
-##############################################################################
 # 4) Find top-10 species for gas-phase from normalized data
-##############################################################################
 
 def find_top_10_species(df_gas):
     """
@@ -212,9 +188,7 @@ def find_top_10_species(df_gas):
     top10 = [s for s, val in sorted_sp[:10]]
     return top10
 
-##############################################################################
 # 5) Plot each top species vs. T,P
-##############################################################################
 
 def plot_species_vs_TP(df_gas, top_species, group_index):
     """
@@ -253,14 +227,12 @@ def plot_species_vs_TP(df_gas, top_species, group_index):
         plt.savefig(save_path, dpi=150)
         plt.close()
 
-##############################################################################
-# Main Orchestration: 10 Groups x 400 Independent Evaluations = 4000 runs
-##############################################################################
+# 4000 total runs
 
 def main() -> None:
     print("\n===== Starting independent pyFastChem runs =====")
 
-    all_gas, all_cond = [], []                    # accumulate every group
+    all_gas, all_cond = [], []
     rng              = np.random.default_rng(seed=12345)
     overall_start    = time.time()
 
@@ -273,7 +245,7 @@ def main() -> None:
         # (A)  choose between “pure-random” and “stratified grid” sampling
         # ------------------------------------------------------------------
         if STRATIFY_GRID:
-            # how many random compositions per (T-bin, P-bin) cell?
+            # how many random compositions per (T-bin, P-bin) cell ?
             reps = max(1, N_PER_GROUP // (N_T_BINS * N_P_BINS))
             point_idx = 0
             for i_t in range(N_T_BINS):
@@ -293,7 +265,6 @@ def main() -> None:
                             comp, T_arr, P_arr, out_dir=outdir,
                             condensates=False)
 
-                        # tag rows
                         df_g["group_index"]  = grp
                         df_g["point_index"]  = point_idx
                         df_c["group_index"]  = grp

@@ -12,8 +12,8 @@
 
 import tensorflow as tf
 
-EPS   = 1e-12                             # avoid log(0)
-LOG10 = tf.math.log(10.0)                 # natural-log of 10
+EPS   = 1e-12
+LOG10 = tf.math.log(10.0)
 
 
 # ------------------------------------------------------------------
@@ -41,7 +41,7 @@ def _balanced_kl(y_true, y_pred):
 
 
 # ------------------------------------------------------------------
-# helper: MAE in log₁₀ space
+# helper: MAE in log10 space
 # ------------------------------------------------------------------
 def _mae_log(y_true, y_pred):
     y_true_log = tf.math.log(y_true + EPS) / LOG10

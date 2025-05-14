@@ -7,19 +7,16 @@
 import os, json, time, joblib, numpy as np, pandas as pd, tensorflow as tf
 from tensorflow import keras
 from sklearn.metrics import mean_absolute_error, r2_score
-import optuna                                     # to read the study object
+import optuna
 from losses import composite_loss
 
-# ---------------------------------------------------------------
-# paths
-# ---------------------------------------------------------------
 ARTE_DIR  = "artefacts"
 CSV_PATH  = "/Users/yashnilmohanty/Desktop/FastChem-Materials/tables/all_gas.csv"
 MODEL_OUT = os.path.join(ARTE_DIR, "surrogate_final.keras")
 CARD_OUT  = os.path.join(ARTE_DIR, "model_card.json")
 
 # ---------------------------------------------------------------
-# 1.  Load data, scaler & split
+# 1.  Load data
 # ---------------------------------------------------------------
 df      = pd.read_csv(CSV_PATH)
 scaler  = joblib.load(os.path.join(ARTE_DIR, "input_scaler.pkl"))
@@ -130,5 +127,5 @@ with open(CARD_OUT, "w") as fh:
     json.dump(card, fh, indent=2)
 
 print("\nSaved:")
-print(" • final model      →", MODEL_OUT)
-print(" • model card JSON  →", CARD_OUT)
+print("final model      →", MODEL_OUT)
+print("model card JSON  →", CARD_OUT)

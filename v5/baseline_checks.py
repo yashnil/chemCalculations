@@ -12,14 +12,11 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing  import StandardScaler
 from pyfastchem import FastChem, FastChemInput, FastChemOutput
 
-# ──────────────────────────────────────────────────────────────────────────
-# USER paths – edit if needed
-# ──────────────────────────────────────────────────────────────────────────
 CSV_PATH   = "/Users/yashnilmohanty/Desktop/FastChem-Materials/tables/all_gas.csv"
 LOGK_PATH  = "/Users/yashnilmohanty/Downloads/FastChem-master/input/logK/logK.dat"
 COND_PATH  = "/Users/yashnilmohanty/Downloads/FastChem-master/input/logK/logK_condensates.dat"
 
-ARTE_DIR   = "artefacts"          # output folder for scaler / splits
+ARTE_DIR   = "artefacts"
 os.makedirs(ARTE_DIR, exist_ok=True)
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -28,9 +25,9 @@ os.makedirs(ARTE_DIR, exist_ok=True)
 df = pd.read_csv(CSV_PATH)
 print("\nLoaded", CSV_PATH, "shape =", df.shape)
 
-assert not df.isna().any().any(), "❌  NaNs present!"
-assert np.isfinite(df.values).all(), "❌  Non‑finite values present!"
-print("✔️  No NaNs / inf values.")
+assert not df.isna().any().any(), "NaNs present!"
+assert np.isfinite(df.values).all(), "Non‑finite values present!"
+print("No NaNs / inf values.")
 
 ELEMENT_COLS = [f"comp_{e}" for e in ("H","O","C","N","S")]
 META_COLS    = {"temperature", "pressure",
@@ -39,16 +36,16 @@ META_COLS    = {"temperature", "pressure",
 species_cols = [c for c in df.columns if c not in META_COLS]
 
 err = (df[species_cols].sum(axis=1) - 1.0).abs().max()
-print(f"✔️  Species fractions: max|Σ−1| = {err:.3e}")
+print(f"Species fractions: max|Σ−1| = {err:.3e}")
 
 # ──────────────────────────────────────────────────────────────────────────
-# 1‑B  • Quick histograms
+# 1‑B  • Histograms
 # ──────────────────────────────────────────────────────────────────────────
 fig, ax = plt.subplots(1, 2, figsize=(9, 3))
 df["temperature"].hist(bins=40, ax=ax[0]);              ax[0].set_title("Temperature")
 np.log10(df["pressure"]).hist(bins=40, ax=ax[1]);       ax[1].set_title("log10 Pressure")
 plt.tight_layout(); plt.savefig("input_histograms.png", dpi=150)
-print("✔️  Saved histogram → input_histograms.png")
+print("Saved histogram → input_histograms.png")
 
 # ──────────────────────────────────────────────────────────────────────────
 # 1‑C  • Feature scaling (pressure→log10, elements→log10+9)
@@ -61,7 +58,7 @@ for col in ELEMENT_COLS:
 Y = df[species_cols].values.astype("float32")
 
 # ──────────────────────────────────────────────────────────────────────────
-# 1‑D  • Train/val/test split  (60 / 24 / 16 ≈ 60/15/25 from guide)
+# 1‑D  • Train/val/test split  (60/15/25 from guide)
 # ──────────────────────────────────────────────────────────────────────────
 X_train, X_tmp, Y_train, Y_tmp = train_test_split(
         X, Y, test_size=0.40, random_state=42, shuffle=True)
@@ -80,7 +77,7 @@ np.savez(os.path.join(ARTE_DIR, "splits.npz"),
          train_idx=X_train.shape[0],
          val_idx=X_val.shape[0],
          test_idx=X_test.shape[0])
-print("✔️  Scaler & split indices saved to ./artefacts")
+print("Scaler & split indices saved to ./artefacts")
 
 # ──────────────────────────────────────────────────────────────────────────
 # 1‑E  • FastChem latency benchmark
