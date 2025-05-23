@@ -6,7 +6,7 @@
 
 import os, json, time, joblib, numpy as np, pandas as pd, tensorflow as tf
 from tensorflow import keras
-from tensorflow.keras.layers import Softmax
+from tensorflow.keras.layers import Softmax, Lambda
 from sklearn.metrics import mean_absolute_error, r2_score
 import optuna
 from losses import composite_loss
@@ -58,7 +58,8 @@ model = keras.Sequential([keras.layers.Input((7,))])
 for _ in range(best["n_layers"]):
     model.add(keras.layers.Dense(best["units"], activation=best["act"]))
 model.add(keras.layers.Dense(len(SPECIES)))
-model.add(Softmax(axis=-1, temperature=0.5))
+model.add(Lambda(lambda x: x / 0.5, name="temp_scaling"))
+model.add(Softmax(name="final_softmax"))
 
 model.compile(
     optimizer=keras.optimizers.Adam(best["lr"]),
@@ -93,9 +94,9 @@ r2     = r2_score(Y_test, Y_pred, multioutput="variance_weighted")
 print(f"Test‑set  MAE={mae:.4e}   weighted R²={r2:.3f}")
 
 # ---------------------------------------------------------------
-# 6.  Inference‑time benchmark  (compare with 6.42 ms FastChem)
+# 6.  Inference‑time benchmark  (compare with 6.98 ms FastChem)
 # ---------------------------------------------------------------
-FASTCHEM_MS = 6.42
+FASTCHEM_MS = 6.98
 N_BENCH     = min(1000, len(X_test))
 bench_idx   = np.random.choice(len(X_test), N_BENCH, replace=False)
 x_bench     = X_test[bench_idx]

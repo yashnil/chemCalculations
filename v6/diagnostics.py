@@ -8,6 +8,7 @@ import os, json, joblib, time
 import numpy as np, pandas as pd, matplotlib.pyplot as plt, seaborn as sns
 from sklearn.metrics import mean_absolute_error, r2_score
 from tensorflow import keras
+keras.config.enable_unsafe_deserialization()
 
 ARTE_DIR  = "artefacts"
 CSV_PATH  = "/Users/yashnilmohanty/Desktop/FastChem-Materials/tables/all_gas.csv"
@@ -28,7 +29,7 @@ LOG10 = np.log(10.0)
 # ----------------------------------------------------------------------
 df       = pd.read_csv(CSV_PATH)
 scaler   = joblib.load(SCALER_PKL)
-model    = keras.models.load_model(MODEL_PATH, compile=False, safe_mode=True)
+model    = keras.models.load_model(MODEL_PATH, compile=False)
 
 with open(CARD_JSON) as fh:
     card = json.load(fh)
@@ -102,38 +103,63 @@ plt.tight_layout()
 plt.savefig(os.path.join(OUT_DIR, "parity_top10.png"), dpi=180)
 plt.close()
 
-# assume Y_true, Y_pred, df, SPECIES, top10 already loaded
-# create 5 bins each:
-df["T_bin"] = pd.qcut(df["temperature"], 5, labels=["r","g","b","c","m"])
-df["P_bin"] = pd.qcut(np.log10(df["pressure"]), 5, labels=["r","g","b","c","m"])
+# ----------------------------------------------------------------------
+# 4b.  Parity plots for top-10 species colored by T‐bin and P‐bin
+# ----------------------------------------------------------------------
+# create 5 equal‐count bins for T and P
+df["T_bin"] = pd.qcut(df["temperature"], 5, labels=False)
+df["P_bin"] = pd.qcut(np.log10(df["pressure"]), 5, labels=False)
 
-for idx, sp in zip(top10, top10):
-    # log axes
-    true  = np.clip(Y_true[:,idx],  CLIP, None)
-    pred  = np.clip(Y_pred[:,idx],  CLIP, None)
+# map bin‐indices → colors
+bin_colors = {0: "r", 1: "g", 2: "b", 3: "c", 4: "m"}
 
-    # by T_bin
-    plt.figure(figsize=(5,4))
-    for color, group in df.groupby("T_bin"):
-        ixs = group.index
-        plt.scatter(true[ixs], pred[ixs],
-                    s=6, alpha=0.5, c=color, label=color)
-    plt.xscale("log"); plt.yscale("log")
-    plt.title(f"{sp}  colored by T‐bin")
-    plt.legend(title="T bin")
-    plt.savefig(f"artefacts/diagnostics/parity_{sp}_Tbin.png", dpi=120)
+for sp in top10:
+    idx = SPECIES.index(sp)              # integer column index
+    true_vals = np.clip(Y_true[:, idx], CLIP, None)
+    pred_vals = np.clip(Y_pred[:, idx], CLIP, None)
+
+    # — parity colored by temperature bin —
+    plt.figure(figsize=(5, 4))
+    for b, color in bin_colors.items():
+        mask = df["T_bin"] == b
+        plt.scatter(
+            true_vals[mask],
+            pred_vals[mask],
+            s=6,
+            alpha=0.5,
+            c=color,
+            label=f"bin {b}"
+        )
+    plt.xscale("log")
+    plt.yscale("log")
+    plt.xlabel("True abundance")
+    plt.ylabel("Predicted abundance")
+    plt.title(f"{sp} — colored by T-bin")
+    plt.legend(title="T bin", loc="lower right", fontsize="small")
+    plt.tight_layout()
+    plt.savefig(os.path.join(OUT_DIR, f"parity_{sp}_Tbin.png"), dpi=120)
     plt.close()
 
-    # by P_bin (same pattern)
-    plt.figure(figsize=(5,4))
-    for color, group in df.groupby("P_bin"):
-        ixs = group.index
-        plt.scatter(true[ixs], pred[ixs],
-                    s=6, alpha=0.5, c=color, label=color)
-    plt.xscale("log"); plt.yscale("log")
-    plt.title(f"{sp}  colored by P‐bin")
-    plt.legend(title="P bin")
-    plt.savefig(f"artefacts/diagnostics/parity_{sp}_Pbin.png", dpi=120)
+    # — parity colored by pressure bin —
+    plt.figure(figsize=(5, 4))
+    for b, color in bin_colors.items():
+        mask = df["P_bin"] == b
+        plt.scatter(
+            true_vals[mask],
+            pred_vals[mask],
+            s=6,
+            alpha=0.5,
+            c=color,
+            label=f"bin {b}"
+        )
+    plt.xscale("log")
+    plt.yscale("log")
+    plt.xlabel("True abundance")
+    plt.ylabel("Predicted abundance")
+    plt.title(f"{sp} — colored by P-bin")
+    plt.legend(title="P bin", loc="lower right", fontsize="small")
+    plt.tight_layout()
+    plt.savefig(os.path.join(OUT_DIR, f"parity_{sp}_Pbin.png"), dpi=120)
     plt.close()
 
 # ----------------------------------------------------------------------
