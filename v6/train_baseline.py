@@ -92,7 +92,7 @@ r2  = r2_score(Y_test, Y_pred, multioutput="variance_weighted")
 print(f"\nTest‑set  MAE={mae:.4e}   weighted R²={r2:.3f}")
 
 # ───────────────────────────────────────────────────────────────────────────
-# 4 b)  runtime benchmark – compare with FastChem (6.42 ms / point)
+# 4 b)  runtime benchmark – compare with FastChem (6.98 ms / point)
 # ───────────────────────────────────────────────────────────────────────────
 
 MAX_BENCH = 1_000
@@ -106,7 +106,7 @@ t0   = time.time()
 _    = model.predict(x_bench, batch_size=256)
 nn_ms = (time.time() - t0) / N_BENCH * 1e3            # ms per point
 
-FASTCHEM_MS = 6.42                                    # your benchmark
+FASTCHEM_MS = 6.98                                    # your benchmark
 speedup     = FASTCHEM_MS / nn_ms
 
 print(f"\nInference latency  : {nn_ms:.3f} ms / point "
