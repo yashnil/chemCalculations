@@ -1,0 +1,178 @@
+FastChem-Surrogate Project – Technical Documentation
+====================================================
+
+Author      : Yashnil Mohanty  
+Last updated: April 28, 2025  
+File        : documentation.txt  
+
+-----------------------------------------------------
+PROJECT OVERVIEW
+-----------------------------------------------------
+
+Goal:
+-----
+Develop a neural-network surrogate model for the FastChem chemical equilibrium solver. The surrogate achieves significantly accelerated inference (≥100× faster) while maintaining high fidelity with FastChem solutions (linear-space MAE ≤ 2×10⁻³, weighted R² > 0.9, and accurate log-space parity).
+
+Specifications:
+---------------
+- Inputs (7):  
+  • Temperature (K, linear)  
+  • Pressure (bar, log₁₀-scaled)  
+  • Elemental fractions H, O, C, N, S (log₁₀(x) + 9 scaled)
+- Outputs (116):  
+  • Normalized gas-phase species fractions (sum to 1)
+- Performance:  
+  • Target MAE ≤ 2 × 10⁻³  
+  • Weighted R² ≥ 0.9  
+  • Speed ≥100× faster than original FastChem solver (~6.42 ms/point)
+
+-----------------------------------------------------
+PIPELINE STRUCTURE
+-----------------------------------------------------
+
+| Step | Script / file        | Purpose                                          | Key Results                               |
+|------|----------------------|--------------------------------------------------|-------------------------------------------|
+| 0    | generate_ds.py       | Generate FastChem dataset (20,000 samples)       | Data: tables/all_gas.csv                  |
+| 1    | baseline_checks.py   | Sanity checks, scaling, splitting, benchmarks    | FastChem latency: 6.42 ms/sample          |
+| 2    | train_baseline.py    | Initial baseline NN model (MLP, softmax output)  | Test MAE=1.92e-3, R²=0.874, 152× speed-up |
+| 3    | tune.py              | Hyperparameter tuning via Optuna                 | Val MAE=1.51e-3 (best parameters found)   |
+| 4a   | finalize.py          | Retrain best model on full train+val data        | Test MAE=1.53e-3, R²=0.924, 132× speed-up |
+| 4b   | final_train.py       | Alternative training with explicit val split     | Test MAE=3.36e-3, R²=0.645, 142× speed-up |
+| 5    | diagnostics.py       | Extensive performance analysis and plots         | Diagnostics saved in artefacts/diagnostics|
+| -    | losses.py            | Custom composite loss (balanced KL & log-MAE)    | λ=0.6 recommended                         |
+| -    | utils.py             | Data loading and preprocessing utilities         | Shared helper functions                   |
+
+-----------------------------------------------------
+DETAILED STEP-BY-STEP METHODOLOGY
+-----------------------------------------------------
+
+0. generate_ds.py
+-----------------
+- Generates synthetic FastChem equilibrium calculations.
+- Sampling strategy:
+  • Temperature: Uniform 100–3000 K
+  • log₁₀(Pressure): Uniform -10 to +5 bar
+  • Random elemental ratios (H,O,C,N,S), normalized
+- Runs via pyFastChem interface, no condensation.
+- Handles NaN/Inf → replaced by zero.
+- Saves outputs:
+  • Gas-phase: tables/all_gas.csv (normalized abundances)
+  • Condensed-phase: tables/all_cond.csv
+  • Visualization: species abundance vs T-P plots.
+
+1. baseline_checks.py
+---------------------
+- Checks integrity of dataset (no NaNs/infs, correct normalization).
+- Applies transformations:
+  • Pressure → log₁₀(P)
+  • Elements → log₁₀(x) + 9
+- Data splitting (random_state=42):
+  • Train (60%), Validation (24%), Test (16%)
+- Fits and saves StandardScaler (artefacts/input_scaler.pkl).
+- Saves split indices (artefacts/splits.npz).
+- Benchmarks original FastChem solver speed: 6.42 ms/sample.
+
+2. train_baseline.py
+--------------------
+- Architecture: MLP (256→256→128 units), GELU activations, softmax output.
+- Custom loss: composite_loss (balanced KL + log-MAE, λ=0.6).
+- Trained for up to 500 epochs, early stopping patience=20.
+- Test performance: MAE=1.92e-3, R²=0.874.
+- Inference speed: ~0.042 ms/sample, ~152× speed-up vs FastChem.
+
+3. tune.py
+----------
+- Optuna hyperparameter tuning (40 trials):
+  • Layers: 2–5, Units: 128/256/512, Activations: gelu/swish
+  • Learning rate: 1e-4 to 3e-3 (log-scale)
+  • Composite loss parameter λ: 0.3 to 0.9
+- Best parameters:  
+  • 5 layers, 256 units/layer, Swish activation  
+  • lr=1.05e-3, λ=0.377
+- Best Validation MAE: 1.51e-3
+- Saves study: artefacts/optuna_study.pkl
+
+4a. finalize.py
+---------------
+- Retrains the best model (from Optuna) on combined train+validation sets.
+- Final Test-set evaluation: MAE=1.53e-3, R²=0.924.
+- Benchmark: latency=0.049 ms/sample, ~132× speed-up.
+- Saves final model: artefacts/final_model.keras
+- Saves performance summary: artefacts/final_report.json
+
+4b. final_train.py
+------------------
+- Alternative fit, explicitly preserves validation split.
+- Slight performance reduction (MAE=3.36e-3, R²=0.645), still very fast.
+- Saves model: artefacts/surrogate_final.keras
+- Generates detailed model metadata card: artefacts/model_card.json
+
+5. diagnostics.py
+-----------------
+- Full-dataset performance analysis.
+- Generates detailed visualizations and diagnostics:
+  • Global metrics (MAE, R², Balanced KL-divergence)
+  • Per-species error analysis CSV and bar charts
+  • Parity plots (log-log) of top-10 abundant species
+  • Residual heatmaps (temperature-pressure space)
+  • Cumulative error analysis plots
+  • Per-sample deviation timeline
+- Diagnostic results saved under: artefacts/diagnostics/
+
+losses.py
+---------
+- Custom composite loss combining balanced KL and log-space MAE.
+- Balances the emphasis between linear accuracy and log-space parity.
+- Recommended λ=0.6.
+
+utils.py
+--------
+- Common utility functions for dataset handling, normalization, splits.
+- Ensures consistent preprocessing across pipeline scripts.
+
+-----------------------------------------------------
+HOW TO RUN THE ENTIRE PIPELINE (REPRODUCIBILITY)
+-----------------------------------------------------
+
+Setup Python Environment:
+-------------------------
+
+conda create -n fastchem_nn python=3.9 
+conda activate fastchem_nn pip install tensorflow==2.15 optuna scikit-learn pandas matplotlib seaborn joblib pyfastchem
+
+Adjust File Paths:
+------------------
+- Ensure paths to FastChem files (logK data, etc.) are correct within scripts.
+
+Execute Pipeline Steps in Order:
+--------------------------------
+
+python generate_ds.py # ~2–3 min runtime (20k samples) 
+python baseline_checks.py # sanity checks, scaling, splitting 
+python train_baseline.py # baseline neural network 
+python tune.py # hyperparameter tuning (~20 min) 
+python final_train.py
+python finalize.py # final production model training 
+python diagnostics.py # comprehensive diagnostics plots
+
+-----------------------------------------------------
+NOTES & TROUBLESHOOTING
+-----------------------------------------------------
+- NaN Issues: Handled explicitly; all NaN/inf replaced by zero.
+- Type Errors (composite_loss): Ensure float λ passed correctly (e.g., λ=0.6), not a string.
+- Final Training (4a vs 4b):  
+  • Use finalize.py (4a) outputs for final deployment.
+  • final_train.py (4b) provides detailed model card for metadata reference.
+- Optuna Speed: Can improve with GPU acceleration, reduce logging verbosity.
+
+-----------------------------------------------------
+NEXT STEPS / FUTURE ENHANCEMENTS
+-----------------------------------------------------
+- Incorporate condensed-phase outputs (multitask learning).
+- Robustness: Train with augmented noisy inputs.
+- Deployment optimization: Export to ONNX, TensorRT formats.
+- Implement uncertainty quantification (MC-dropout or ensembles).
+
+-----------------------------------------------------
+END OF DOCUMENTATION
+-----------------------------------------------------
