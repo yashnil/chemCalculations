@@ -6,6 +6,7 @@
 
 import os, json, time, joblib, numpy as np, pandas as pd, tensorflow as tf
 from tensorflow import keras
+from tensorflow.keras.layers import Softmax
 from sklearn.metrics import mean_absolute_error, r2_score
 import optuna
 from losses import composite_loss
@@ -56,7 +57,8 @@ print("Best hyper‑params:", best)
 model = keras.Sequential([keras.layers.Input((7,))])
 for _ in range(best["n_layers"]):
     model.add(keras.layers.Dense(best["units"], activation=best["act"]))
-model.add(keras.layers.Dense(len(SPECIES), activation="softmax"))
+model.add(keras.layers.Dense(len(SPECIES)))
+model.add(Softmax(axis=-1, temperature=0.5))
 
 model.compile(
     optimizer=keras.optimizers.Adam(best["lr"]),

@@ -102,6 +102,40 @@ plt.tight_layout()
 plt.savefig(os.path.join(OUT_DIR, "parity_top10.png"), dpi=180)
 plt.close()
 
+# assume Y_true, Y_pred, df, SPECIES, top10 already loaded
+# create 5 bins each:
+df["T_bin"] = pd.qcut(df["temperature"], 5, labels=["r","g","b","c","m"])
+df["P_bin"] = pd.qcut(np.log10(df["pressure"]), 5, labels=["r","g","b","c","m"])
+
+for idx, sp in zip(top10, top10):
+    # log axes
+    true  = np.clip(Y_true[:,idx],  CLIP, None)
+    pred  = np.clip(Y_pred[:,idx],  CLIP, None)
+
+    # by T_bin
+    plt.figure(figsize=(5,4))
+    for color, group in df.groupby("T_bin"):
+        ixs = group.index
+        plt.scatter(true[ixs], pred[ixs],
+                    s=6, alpha=0.5, c=color, label=color)
+    plt.xscale("log"); plt.yscale("log")
+    plt.title(f"{sp}  colored by T‐bin")
+    plt.legend(title="T bin")
+    plt.savefig(f"artefacts/diagnostics/parity_{sp}_Tbin.png", dpi=120)
+    plt.close()
+
+    # by P_bin (same pattern)
+    plt.figure(figsize=(5,4))
+    for color, group in df.groupby("P_bin"):
+        ixs = group.index
+        plt.scatter(true[ixs], pred[ixs],
+                    s=6, alpha=0.5, c=color, label=color)
+    plt.xscale("log"); plt.yscale("log")
+    plt.title(f"{sp}  colored by P‐bin")
+    plt.legend(title="P bin")
+    plt.savefig(f"artefacts/diagnostics/parity_{sp}_Pbin.png", dpi=120)
+    plt.close()
+
 # ----------------------------------------------------------------------
 # 5.  Residual T–P hex-bin for the worst species
 # ----------------------------------------------------------------------
@@ -119,6 +153,34 @@ plt.ylabel("log10 Pressure [bar]")
 plt.title(f"Residual hex-bin – worst MAE species: {sp}")
 plt.tight_layout()
 plt.savefig(os.path.join(OUT_DIR, f"residual_TP_{sp}.png"), dpi=180)
+plt.close()
+
+EPS = 1e-12
+
+# find the species with the largest linear MAE
+worst_idx = int(tbl["MAE"].idxmax())
+sp        = tbl.loc[worst_idx, "species"]
+
+# compute log10(true) and log10(pred) then difference
+log_true = np.log10(Y_true[:, worst_idx] + EPS)
+log_pred = np.log10(Y_pred[:, worst_idx] + EPS)
+residual = log_pred - log_true   # units: dex
+
+plt.figure(figsize=(6, 4.5))
+sc = plt.scatter(
+    df["temperature"],
+    np.log10(df["pressure"]),
+    c=residual,
+    cmap="coolwarm",
+    s=8,
+    vmin=-1.0, vmax=1.0       # clamp to ±1 dex for better contrast
+)
+plt.colorbar(sc, label=r"$\log_{10}\,\hat y - \log_{10}\,y$ (dex)")
+plt.xlabel("Temperature [K]")
+plt.ylabel("log10 Pressure [bar]")
+plt.title(f"Log-diff Residuals | worst-MAE species: {sp}")
+plt.tight_layout()
+plt.savefig(os.path.join(OUT_DIR, f"logdiff_residual_TP_{sp}.png"), dpi=180)
 plt.close()
 
 # ----------------------------------------------------------------------
