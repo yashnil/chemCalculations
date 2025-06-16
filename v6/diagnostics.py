@@ -29,7 +29,7 @@ LOG10 = np.log(10.0)
 # ----------------------------------------------------------------------
 df       = pd.read_csv(CSV_PATH)
 scaler   = joblib.load(SCALER_PKL)
-model    = keras.models.load_model(MODEL_PATH, compile=False)
+model    = keras.models.load_model(MODEL_PATH, compile=False, safe_mode=False)
 
 with open(CARD_JSON) as fh:
     card = json.load(fh)
@@ -87,8 +87,10 @@ axs = axs.ravel()
 
 for ax, sp in zip(axs, top10):
     idx = SPECIES.index(sp)
-    true = np.clip(Y_true[:, idx], CLIP, None)
-    pred = np.clip(Y_pred[:, idx], CLIP, None)
+
+    mask = (Y_true[:, idx]   > CLIP) & (Y_pred[:, idx]   > CLIP)
+    true = np.clip(Y_true[mask, idx], CLIP, None)
+    pred = np.clip(Y_pred[mask, idx], CLIP, None)
 
     ax.scatter(true, pred, s=4, alpha=0.35, edgecolor="none")
     ax.set_xscale("log"); ax.set_yscale("log")
@@ -104,34 +106,42 @@ plt.savefig(os.path.join(OUT_DIR, "parity_top10.png"), dpi=180)
 plt.close()
 
 # ----------------------------------------------------------------------
-# 4b.  Parity plots for top-10 species colored by T‐bin and P‐bin
+# 4b.  Parity plots for top-10 species colored by T-bin and P-bin
 # ----------------------------------------------------------------------
-# create 5 equal‐count bins for T and P
-df["T_bin"] = pd.qcut(df["temperature"], 5, labels=False)
-df["P_bin"] = pd.qcut(np.log10(df["pressure"]), 5, labels=False)
+# first define your bins on the full DataFrame
+df["T_bin"] = pd.qcut(df["temperature"], 5, labels=False, duplicates="drop")
+df["P_bin"] = pd.qcut(np.log10(df["pressure"]), 5, labels=False, duplicates="drop")
 
-# map bin‐indices → colors
+# mapping from bin index → plotting color
 bin_colors = {0: "r", 1: "g", 2: "b", 3: "c", 4: "m"}
 
 for sp in top10:
-    idx = SPECIES.index(sp)              # integer column index
-    true_vals = np.clip(Y_true[:, idx], CLIP, None)
-    pred_vals = np.clip(Y_pred[:, idx], CLIP, None)
+    idx = SPECIES.index(sp)
+
+    # build a mask so we only plot points ABOVE the CLIP floor
+    mask_all  = (Y_true[:, idx] > CLIP) & (Y_pred[:, idx] > CLIP)
+
+    # extract the filtered true/pred arrays
+    true_vals = np.clip(Y_true[mask_all, idx], CLIP, None)
+    pred_vals = np.clip(Y_pred[mask_all, idx], CLIP, None)
+
+    # extract the corresponding bin assignments
+    T_bins    = df.loc[mask_all, "T_bin"].values
+    P_bins    = df.loc[mask_all, "P_bin"].values
 
     # — parity colored by temperature bin —
     plt.figure(figsize=(5, 4))
     for b, color in bin_colors.items():
-        mask = df["T_bin"] == b
+        sub = (T_bins == b)
         plt.scatter(
-            true_vals[mask],
-            pred_vals[mask],
+            true_vals[sub],
+            pred_vals[sub],
             s=6,
             alpha=0.5,
             c=color,
             label=f"bin {b}"
         )
-    plt.xscale("log")
-    plt.yscale("log")
+    plt.xscale("log"); plt.yscale("log")
     plt.xlabel("True abundance")
     plt.ylabel("Predicted abundance")
     plt.title(f"{sp} — colored by T-bin")
@@ -143,17 +153,16 @@ for sp in top10:
     # — parity colored by pressure bin —
     plt.figure(figsize=(5, 4))
     for b, color in bin_colors.items():
-        mask = df["P_bin"] == b
+        sub = (P_bins == b)
         plt.scatter(
-            true_vals[mask],
-            pred_vals[mask],
+            true_vals[sub],
+            pred_vals[sub],
             s=6,
             alpha=0.5,
             c=color,
             label=f"bin {b}"
         )
-    plt.xscale("log")
-    plt.yscale("log")
+    plt.xscale("log"); plt.yscale("log")
     plt.xlabel("True abundance")
     plt.ylabel("Predicted abundance")
     plt.title(f"{sp} — colored by P-bin")
@@ -161,27 +170,28 @@ for sp in top10:
     plt.tight_layout()
     plt.savefig(os.path.join(OUT_DIR, f"parity_{sp}_Pbin.png"), dpi=120)
     plt.close()
-
 # ----------------------------------------------------------------------
 # 5.  Residual T–P hex-bin for the worst species
 # ----------------------------------------------------------------------
 worst_idx = int(tbl["MAE"].idxmax())
 sp        = tbl.loc[worst_idx, "species"]
-residual  = Y_pred[:, worst_idx] - Y_true[:, worst_idx]
+
+# Δlog = log10(pred) - log10(true)
+log_true = np.log10(np.clip(Y_true[:, worst_idx], EPS, None))
+log_pred = np.log10(np.clip(Y_pred[:, worst_idx], EPS, None))
+residual  = log_pred - log_true   # in dex
 
 plt.figure(figsize=(6.2, 4.8))
 hb = plt.hexbin(df["temperature"], np.log10(df["pressure"]),
                 C=residual, gridsize=70, cmap="coolwarm",
                 mincnt=3, linewidths=0.0)
-plt.colorbar(hb, label="Pred − True")
+plt.colorbar(hb, label=r"$\Delta\log_{10}\,(y_{\rm pred}/y_{\rm true})$ (dex)")
 plt.xlabel("Temperature [K]")
 plt.ylabel("log10 Pressure [bar]")
 plt.title(f"Residual hex-bin – worst MAE species: {sp}")
 plt.tight_layout()
 plt.savefig(os.path.join(OUT_DIR, f"residual_TP_{sp}.png"), dpi=180)
 plt.close()
-
-EPS = 1e-12
 
 # find the species with the largest linear MAE
 worst_idx = int(tbl["MAE"].idxmax())

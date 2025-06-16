@@ -15,65 +15,44 @@ import tensorflow as tf
 EPS   = 1e-12
 LOG10 = tf.math.log(10.0)
 
-
-# ------------------------------------------------------------------
-# helper: KL divergence re-weighted by the inverse mean abundance
-# ------------------------------------------------------------------
 def _balanced_kl(y_true, y_pred):
-    """
-    KL divergence where each species is weighted by
-        w_i = 1 / ⟨y_true_i⟩    (normalised so Σw = 1)
-
-    This prevents the gradient from being dominated by the
-    handful of abundant species and pulls the rare end of the
-    distribution (≈ 1e-10 … 1e-6) toward the 1:1 line.
-    """
-    # average abundance per species over the batch
     w = 1.0 / (tf.reduce_mean(y_true, axis=0) + EPS)
     w = w / tf.reduce_sum(w)
-
-    kl_elem = y_true * (
-        tf.math.log(y_true + EPS) - tf.math.log(y_pred + EPS)
-    )                                                   
-
-    # mean over batch, then weighted sum over species → scalar
+    kl_elem = y_true * (tf.math.log(y_true + EPS) - tf.math.log(y_pred + EPS))
     return tf.reduce_sum(w * tf.reduce_mean(kl_elem, axis=0))
 
-
-# ------------------------------------------------------------------
-# helper: MAE in log10 space
-# ------------------------------------------------------------------
 def _mae_log(y_true, y_pred):
     y_true_log = tf.math.log(y_true + EPS) / LOG10
     y_pred_log = tf.math.log(y_pred + EPS) / LOG10
     return tf.reduce_mean(tf.abs(y_true_log - y_pred_log))
 
-
-# ------------------------------------------------------------------
-# public factory  : composite loss = λ·balanced_KL + (1-λ)·log-MAE
-# ------------------------------------------------------------------
-def composite_loss(lam: float = 0.6):
+def composite_loss(lam: float = 0.6,
+                   A_mat: tf.Tensor = None,
+                   b_vec: tf.Tensor = None,
+                   beta: float = 0.0):
+    """
+    If you pass A_mat (shape [n_spec→n_elem]) and b_vec ([n_elem]),
+    a small mass-balance penalty β·∥A·y_pred - b∥² will be added.
+    """
     def _loss(y_true, y_pred):
-        # y_true, y_pred: [batch, species]
-        # 1) compute the inverse–mean weights once per batch
-        w = 1.0 / (tf.reduce_mean(y_true, axis=0) + EPS)  
-        w = w / tf.reduce_sum(w)                        # [species]
+        # 1) balanced‐KL per sample
+        w = 1.0 / (tf.reduce_mean(y_true, axis=0) + EPS)
+        w = w / tf.reduce_sum(w)
+        kl_elem = y_true * (tf.math.log(y_true + EPS) - tf.math.log(y_pred + EPS))
+        kl_per_sample = tf.reduce_sum(w * kl_elem, axis=1)    # [batch]
 
-        # 2) per-sample KL divergence: sum_i w_i * (y_true*log(y_true/y_pred))_i
-        kl_elem      = y_true * (tf.math.log(y_true+EPS) - tf.math.log(y_pred+EPS))
-        kl_per_sample = tf.reduce_sum(w * tf.reduce_mean(kl_elem, axis=0), axis=0)
-        # Actually we need per-sample → compute mean over species per sample then weight
-        kl_per_sample = tf.reduce_sum(w * tf.reduce_mean(kl_elem, axis=0), axis=0)
-        # (that’s still scalar—so better do species_weight * per-sample kl)
-
-        # Instead, do it this way:
-        kl_per_sample = tf.reduce_sum(w * kl_elem, axis=1)  # [batch]
-
-        # 3) per-sample log-MAE
+        # 2) log‐MAE per sample
         y_true_log = tf.math.log(y_true + EPS) / LOG10
         y_pred_log = tf.math.log(y_pred + EPS) / LOG10
-        mae_log_per_sample = tf.reduce_mean(tf.abs(y_true_log - y_pred_log), axis=1)  # [batch]
+        mae_log_per_sample = tf.reduce_mean(tf.abs(y_true_log - y_pred_log), axis=1)
 
-        # 4) combine
-        return lam * kl_per_sample + (1.0 - lam) * mae_log_per_sample  # [batch]
+        loss = lam * kl_per_sample + (1.0 - lam) * mae_log_per_sample  # [batch]
+
+        # 3) optional mass‐balance
+        if A_mat is not None and b_vec is not None and beta > 0.0:
+            # y_pred [batch,n_spec] → A_mat [n_spec,n_elem] → [batch,n_elem]
+            mb = tf.reduce_mean((tf.matmul(y_pred, A_mat) - b_vec)**2, axis=1)
+            loss = loss + beta * mb
+
+        return loss
     return _loss

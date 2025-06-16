@@ -63,7 +63,7 @@ model.add(Softmax(name="final_softmax"))
 
 model.compile(
     optimizer=keras.optimizers.Adam(best["lr"]),
-    loss=composite_loss(best["lam"]),                    
+    loss=composite_loss(lam=0.6),                 
     metrics=[keras.metrics.MeanAbsoluteError(name="mae")]
 )
 

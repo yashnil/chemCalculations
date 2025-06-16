@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # step 4a -> finalize.py
 
-import os, json, time, joblib, numpy as np
+import os, json, time, joblib, numpy as np, tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras.layers import Softmax, Lambda
 from sklearn.metrics import mean_absolute_error, r2_score
@@ -38,7 +38,7 @@ model.add(Softmax(axis=-1, name="probabilities"))
 
 model.compile(
     optimizer=keras.optimizers.Adam(best["lr"]),
-    loss=composite_loss(best["lam"]),
+    loss=composite_loss(lam=0.6),      
     metrics=[keras.metrics.MeanAbsoluteError(name="mae_lin")]
 )
 
@@ -74,7 +74,7 @@ t0 = time.time()
 _  = model.predict(x_bench,  batch_size=256, verbose=0)
 nn_ms = (time.time() - t0)/N_BENCH * 1e3
 
-FASTCHEM_MS = 6.98
+FASTCHEM_MS = 6.29
 speedup     = FASTCHEM_MS / nn_ms
 print(f"Inference latency : {nn_ms:.3f} ms / sample")
 print(f"Speed-up vs FastChem: ×{speedup:.1f}")
