@@ -57,10 +57,10 @@ PIPELINE STRUCTURE (Version 8)
 |       |                    | CSVs, residual analysis across T–P space.            |                              |
 +-------+--------------------+-----------------------------------------------------+------------------------------+
 
-Utility modules in `libs/`:  
-- `model_heads.py`: Implements custom softplus output head  
-- `losses.py`: Defines composite loss with MAE + KL divergence  
-- `utils.py`: Logging, data loading, normalization helpers
+Utility modules in libs/:  
+- model_heads.py: Implements custom softplus output head  
+- losses.py: Defines composite loss with MAE + KL divergence  
+- utils.py: Logging, data loading, normalization helpers
 
 ---------------------------------------------------------------------
 KEY TECHNICAL IMPROVEMENTS
