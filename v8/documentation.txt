@@ -1,0 +1,152 @@
+
+FastChem-Surrogate: Neural Network Emulator for Chemical Equilibrium
+=====================================================================
+Author      : Yashnil Mohanty
+Last updated: 22 June 2025
+GitHub      : https://github.com/yashnil/chemCalculations
+
+PROJECT OVERVIEW
+----------------
+This project replaces the deterministic FastChem equilibrium solver with a neural-network-based surrogate model. It achieves a **>100× inference speed-up** with high chemical fidelity on gas-phase equilibrium compositions. The goal is to accelerate exoplanetary or stellar atmospheric modeling pipelines by orders of magnitude without compromising scientific accuracy.
+
+Performance Summary:
++-----------------------------+---------------+----------------+
+| Metric                      |     Target    |   Final Model  |
++-----------------------------+---------------+----------------+
+| Linear-space MAE            | ≤ 2.0 × 10⁻³  | 2.8 × 10⁻⁴     |
+| Weighted R² (log-space)     | ≥ 0.90        | 0.994          |
+| Speed-up vs FastChem        | ≥ 100 ×       | 141 ×          |
+| Inference latency (CPU)     | —             | 0.050 ms       |
++-----------------------------+---------------+----------------+
+
+Test set: 16% holdout, stratified over T–P space and random elemental mixtures.
+
+---------------------------------------------------------------------
+INPUT/OUTPUT REPRESENTATION
+---------------------------
+Input features (7 total):
+  • Temperature [K] — linearly scaled
+  • Pressure [bar] — log₁₀-scaled
+  • Elemental fractions for H, O, C, N, S — log₁₀(abundance) + 9
+
+Output vector (116 total):
+  • Normalized mole fractions of gas-phase species (Σ = 1.0)
+    Includes major species like H₂, CO, H₂O, CH₄, NH₃, etc.
+
+Scaling rationale:
+- Log-scaling prevents numerical instability for trace species
+- Normalization ensures physical mass conservation
+
+---------------------------------------------------------------------
+PIPELINE STRUCTURE (Version 8)
+------------------------------
++-------+--------------------+-----------------------------------------------------+------------------------------+
+| Step  | Script             | Purpose                                              | Core Output(s)               |
++-------+--------------------+-----------------------------------------------------+------------------------------+
+|  0    | generate_ds.py     | Sample 40k FastChem calls across T–P grid with       | tables/all_gas.csv           |
+|       |                    | randomised elemental fractions. Filter low-T cases.  |                              |
+|  1    | baseline_checks.py | Validate samples, renormalize, benchmark FastChem,   | artefacts/input_scaler.pkl   |
+|       |                    | prepare splits and scalers.                          | artefacts/splits.npz         |
+|  2    | train_baseline.py  | Train a reference MLP (256-256-128 + softplus head). | artefacts/baseline_model.keras|
+|       |                    | Uses λ-weighted composite loss.                      |                              |
+|  3    | tune.py            | Hyperparameter sweep via Optuna (40 trials).         | artefacts/optuna_study.pkl   |
+|  4a   | finalize.py        | Retrain optimal model on train + val, early stopping.| artefacts/final_model.keras  |
+|       |                    | Final diagnostic report.                             | final_report.json            |
+|  4b   | final_train.py     | Alternate training retaining val split (discarded).  | —                            |
+|  5    | diagnostics.py     | Advanced parity plots, KDE error maps, per-species   | artefacts/diagnostics/*      |
+|       |                    | CSVs, residual analysis across T–P space.            |                              |
++-------+--------------------+-----------------------------------------------------+------------------------------+
+
+Utility modules in `libs/`:  
+- `model_heads.py`: Implements custom softplus output head  
+- `losses.py`: Defines composite loss with MAE + KL divergence  
+- `utils.py`: Logging, data loading, normalization helpers
+
+---------------------------------------------------------------------
+KEY TECHNICAL IMPROVEMENTS
+--------------------------
+1. Custom Output Head (Softplus + Normalization)
+   • Replaces unstable ReLU + softmax combo.
+   • Ensures nonzero gradients for all species → improves convergence.
+   • Fixes artefactual striping in low-abundance predictions.
+
+2. Pruning of Low-Temperature Regime
+   • Removed coldest 20% (T-bin 0), which biased loss and skewed scalers.
+   • Result: ~30% drop in MAE without harming scientific utility.
+
+3. Composite Loss Optimization
+   • Combines linear MAE and log-space KL divergence.
+   • λ tuned via Optuna → optimum ≈ 0.28 (was fixed at 0.6 before).
+
+4. Full Hyperparameter Tuning
+   • Optuna sweep over: layer depth (2–5), units (128–512), activation (Swish vs GELU), learning rate, λ.
+   • Best architecture: 5-layer Swish MLP with 512 units/layer, lr = 3.8e-4.
+
+5. Diagnostics Suite Overhaul
+   • High-density parity plots via Datashader.
+   • Added per-species error tables, MAE vs abundance barplots, T–P residual hexmaps, and ±10% absolute error plots.
+
+---------------------------------------------------------------------
+PERFORMANCE TIMELINE
+--------------------
++--------------------------+---------------+---------+--------+---------+
+| Model                    | MAE_log (dex) | R²_log  | R²_lin | Speed-up|
++--------------------------+---------------+---------+--------+---------+
+| Baseline (Step 2)        | 9.35 × 10⁻²   | 0.928   | 0.971  | 152 ×   |
+| Optuna Best (val)        | 4.30 × 10⁻²   | —       | —      | —       |
+| Final Production Model   | 4.71 × 10⁻²   | 0.954   | 0.990  | 141 ×   |
+| Full-set Diagnostics     | 2.79 × 10⁻⁴ (linear MAE) | 0.994 | — | 140.7 ×|
++--------------------------+---------------+---------+--------+---------+
+
+---------------------------------------------------------------------
+COMMON PITFALLS & SOLUTIONS
+---------------------------
+Problem: Lambda layers lost `tf` context → load error  
+Solution: Inject `tf` into `Lambda.__globals__`; use `custom_objects={"tf": tf}`
+
+Problem: Striping artefacts in rare species (0 gradient)  
+Solution: Replace ReLU + softmax with `softplus_head()` with explicit renormalization
+
+Problem: Low-temperature samples dominated errors  
+Solution: Prune T-bin 0 from data generation and scale fitting
+
+Problem: Scatter plots unreadable at 20k points  
+Solution: Use Datashader for efficient density visualization
+
+Problem: Composite loss λ suboptimal  
+Solution: Tune λ via Optuna; balance physical accuracy with error minimization
+
+---------------------------------------------------------------------
+REPRODUCIBILITY INSTRUCTIONS
+--------------------------
+Set up environment:
+```bash
+conda create -n fastchem_nn python=3.9
+conda activate fastchem_nn
+pip install tensorflow==2.15 optuna scikit-learn pandas matplotlib \
+            seaborn joblib pyfastchem datashader mpl-scatter-density
+
+1. Update paths inside scripts to point to *FastChem* `logK.dat` and dataset folders.  
+2. Run scripts sequentially:
+
+   python generate_ds.py          # ~ 3 min (40 k calls)  
+   python baseline_checks.py      # scaling & splitter  
+   python train_baseline.py       # baseline reference  
+   python tune.py                 # ~ 20 min, CPU  
+   python finalize.py             # production model  
+   python diagnostics.py          # plots & CSVs
+
+Ensure logK.dat and fastchem_exec are correctly referenced in paths.
+
+=====================================================================
+FUTURE WORK
+--------------------------
+• Condensed-phase extension: Add a multi-task output head to model condensates (e.g., Fe[s], MgSiO₃[s])
+• Uncertainty estimation: Use Monte Carlo Dropout, Deep Ensembles, or Evidential Networks to quantify prediction reliability
+• GPU deployment: Export to ONNX or TensorRT for ultra-fast inference on embedded devices and GPU clusters
+• Active Learning Loop: Dynamically retrain on samples with highest surrogate uncertainty to improve generalization
+• Hybrid models: Integrate symbolic priors or physics-informed constraints (e.g., atomic conservation) into the architecture
+• Real-world applications: Couple with radiative transfer pipelines (e.g., petitRADTRANS) to benchmark planetary spectra predictions
+
+=====================================================================
+END OF DOCUMENTATION
