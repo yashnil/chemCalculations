@@ -1,0 +1,148 @@
+
+FastChem-Surrogate Version 9 (v9): Enhanced Input Representation
+=====================================================================
+Author      : Yashnil Mohanty
+Last updated: October 19, 2025
+Base Version: v8
+GitHub      : https://github.com/yashnil/chemCalculations
+
+VERSION 9 CHANGES
+-----------------
+This version implements three key modifications to the input representation 
+and data splitting strategy compared to v8:
+
+1. **70-15-15 Train/Val/Test Split** (previously 60-15-25)
+   - Training: 70% of data
+   - Validation: 15% of data
+   - Test: 15% of data
+   - Provides more training data while maintaining sufficient validation/test sets
+
+2. **Temperature Normalization**
+   - Old: Temperature [K] linearly scaled via StandardScaler
+   - New: Temperature normalized by global maximum → T_norm = T / T_max
+   - Result: All temperature values in range [0, 1]
+   - T_max saved in artefacts/normalization_params.pkl for inference
+
+3. **Hydrogen-Relative Elemental Composition**
+   - Old: 5 element fractions (H, O, C, N, S) with log₁₀(fraction) + 9 transformation
+   - New: 4 element ratios relative to hydrogen (O/H, C/H, N/H, S/H) with log₁₀(ratio)
+   - Rationale: 
+     * Hydrogen is the most abundant element in most astrophysical contexts
+     * Setting H as reference reduces dimensionality from 5 to 4 element features
+     * Log-ratios are more physically meaningful for abundance patterns
+     * Matches standard notation in astrophysics (e.g., [Fe/H], [O/H])
+
+INPUT FEATURES (v9)
+-------------------
+Total: 6 features (reduced from 7 in v8)
+
+1. temperature_norm     — T / T_max, range [0, 1]
+2. log_pressure         — log₁₀(P [bar])
+3. log_O_H             — log₁₀(O/H ratio)
+4. log_C_H             — log₁₀(C/H ratio)
+5. log_N_H             — log₁₀(N/H ratio)
+6. log_S_H             — log₁₀(S/H ratio)
+
+OUTPUT REPRESENTATION (unchanged from v8)
+-----------------------------------------
+116 gas-phase species normalized mole fractions (Σ = 1.0)
+
+MODEL ARCHITECTURE UPDATES
+---------------------------
+- Input layer: 6 neurons (down from 7)
+- Hidden layers: Same as v8 (tuned via Optuna)
+- Output head: Softplus head with normalization (unchanged)
+- Loss function: Composite loss (λ·balanced_KL + (1-λ)·MAE_log)
+
+PIPELINE EXECUTION ORDER (same as v8)
+-------------------------------------
+1. python generate_ds.py          # Uses v8 data (no changes needed)
+2. python baseline_checks.py      # NEW: 70-15-15 split, v9 transformations
+3. python train_baseline.py       # NEW: 6-input model
+4. python tune.py                 # NEW: 6-input hyperparameter search
+5. python finalize.py             # NEW: Final training with v9 settings
+6. python diagnostics.py          # Diagnostics (may need updates)
+
+ARTEFACTS SAVED
+---------------
+- artefacts/input_scaler.pkl             — StandardScaler for 6 features
+- artefacts/splits.npz                   — 70-15-15 split indices
+- artefacts/normalization_params.pkl     — {"T_max": value} for inference
+- artefacts/baseline_model.keras         — Baseline model
+- artefacts/optuna_study.pkl             — Hyperparameter tuning results
+- artefacts/final_model.keras            — Production model
+- artefacts/final_report.json            — Metrics + metadata (includes T_max, n_inputs)
+
+INFERENCE WORKFLOW (v9)
+-----------------------
+To use the trained model on new data:
+
+```python
+import joblib, numpy as np
+from tensorflow import keras
+
+# Load artefacts
+model = keras.load_model("artefacts/final_model.keras")
+scaler = joblib.load("artefacts/input_scaler.pkl")
+norm_params = joblib.load("artefacts/normalization_params.pkl")
+T_max = norm_params["T_max"]
+
+# Prepare input (T [K], P [bar], comp_H, comp_O, comp_C, comp_N, comp_S)
+T, P = 1500.0, 0.1
+comp = {"H": 0.85, "O": 0.10, "C": 0.03, "N": 0.015, "S": 0.005}
+
+# Transform to v9 features
+features = np.array([[
+    T / T_max,                              # temperature_norm
+    np.log10(P),                            # log_pressure
+    np.log10(comp["O"] / comp["H"]),        # log_O_H
+    np.log10(comp["C"] / comp["H"]),        # log_C_H
+    np.log10(comp["N"] / comp["H"]),        # log_N_H
+    np.log10(comp["S"] / comp["H"])         # log_S_H
+]])
+
+# Scale and predict
+features_scaled = scaler.transform(features)
+abundances = model.predict(features_scaled)
+```
+
+EXPECTED IMPROVEMENTS
+---------------------
+1. **Better generalization**: More training data (70% vs 60%)
+2. **Physical interpretability**: H-relative ratios match astrophysical conventions
+3. **Reduced dimensionality**: 6 inputs instead of 7
+4. **Bounded temperature**: [0,1] normalization may improve gradient flow
+
+POTENTIAL CONSIDERATIONS
+------------------------
+1. **Division by zero**: Ensure comp_H > 0 in all samples
+2. **Extreme ratios**: log₁₀(very small ratio) may create outliers
+3. **Inference compatibility**: Must save and use T_max consistently
+4. **Comparison with v8**: Metrics may differ due to both split and representation changes
+
+COMPATIBILITY WITH V8
+---------------------
+- Uses same data source (all_gas.csv)
+- Uses same species filtering (drop T-bin 0)
+- Uses same loss functions and model head
+- Uses same diagnostics framework (may need input name updates)
+- NOT backward compatible: v9 models cannot use v8 scalers/data
+
+=====================================================================
+RUNNING INSTRUCTIONS
+---------------------
+Ensure you have the v8 environment set up, then:
+
+cd /Users/yashnilmohanty/Desktop/chemCalculations/v9
+
+python baseline_checks.py      # Creates 70-15-15 splits, v9 transformations
+python train_baseline.py       # Baseline with 6 inputs
+python tune.py                 # ~20 min, tunes 6-input architecture
+python finalize.py             # Production model
+python diagnostics.py          # Generate plots and metrics
+
+All artefacts will be saved in v9/artefacts/
+
+=====================================================================
+END OF V9 DOCUMENTATION
+
