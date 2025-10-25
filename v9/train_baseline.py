@@ -34,20 +34,18 @@ split_np = np.load(os.path.join(ARTE_DIR, "splits.npz"))
 train_idx, val_idx, test_idx = (split_np[k] for k in ("train_idx","val_idx","test_idx"))
 
 # ╭──────────────────── 2. FEATURE MATRIX (v9) ──────────╮
-X = pd.DataFrame()
+X = df[["temperature","pressure", *ELEMENT_COLS]].copy()
 
-# Temperature: normalize by global max
+# Temperature: normalize by global max (v9 change)
 T_max = df["temperature"].max()
-X["temperature_norm"] = df["temperature"] / T_max
+X["temperature"] = X["temperature"] / T_max
 
-# Pressure: log10 as before
-X["log_pressure"] = np.log10(df["pressure"])
+# Pressure: log10 (same as v8)
+X["pressure"] = np.log10(X["pressure"])
 
-# Elements: H-relative ratios (log10 of ratio)
-X["log_O_H"] = np.log10(df["comp_O"] / df["comp_H"])
-X["log_C_H"] = np.log10(df["comp_C"] / df["comp_H"])
-X["log_N_H"] = np.log10(df["comp_N"] / df["comp_H"])
-X["log_S_H"] = np.log10(df["comp_S"] / df["comp_H"])
+# Elements: log10 + 9 (same as v8)
+for col in ELEMENT_COLS:
+    X[col] = np.log10(X[col]) + 9.0
 
 X = scaler.transform(X).astype("float32")
 Y = df[SPECIES].values.astype("float32")
@@ -59,9 +57,9 @@ X_test,  Y_test  = X[test_idx],  Y[test_idx]
 print(f"Loaded → train:{len(train_idx)}  val:{len(val_idx)}  test:{len(test_idx)}")
 print("Lowest T in training set =", df.loc[train_idx, "temperature"].min())
 
-# ╭──────────────────── 3. MODEL (v9: 6 inputs) ─────────╮
+# ╭──────────────────── 3. MODEL (v9: 7 inputs) ─────────╮
 model = keras.Sequential([
-    keras.layers.Input(shape=(6,)),            # 6 inputs instead of 7
+    keras.layers.Input(shape=(7,)),            # 7 inputs (same as v8)
     keras.layers.Dense(256, activation="gelu"),
     keras.layers.Dense(256, activation="gelu"),
     keras.layers.Dense(128, activation="gelu"),

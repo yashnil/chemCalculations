@@ -3,8 +3,8 @@
 # ---------------------------------------
 # v9 changes:
 #   - Temperature normalized by global max (0 to 1)
-#   - Elements as H-relative ratios: log10(O/H), log10(C/H), log10(N/H), log10(S/H)
 #   - 70-15-15 train/val/test split
+#   - Elements: same as v8 (log10 + 9)
 
 import os, joblib, numpy as np, pandas as pd
 from sklearn.preprocessing import StandardScaler
@@ -12,13 +12,13 @@ from sklearn.preprocessing import StandardScaler
 ARTE_DIR = "artefacts"   # adjust if you moved the folder
 CSV_PATH = "/Users/yashnilmohanty/Desktop/FastChem-Materials/tables/all_gas.csv"
 
-# Raw input column names from CSV
-RAW_INPUTS  = ["temperature", "pressure",
-               "comp_H", "comp_O", "comp_C", "comp_N", "comp_S"]
-ELEMENT_COLS = RAW_INPUTS[2:]                     # the five elemental columns
+# input column names
+INPUTS  = ["temperature", "pressure",
+           "comp_H", "comp_O", "comp_C", "comp_N", "comp_S"]
+ELEMENT_COLS = INPUTS[2:]                     # the five elemental columns
 
 # build META set once
-META = set(RAW_INPUTS) | {"group_index", "point_index"}
+META = set(INPUTS) | {"group_index", "point_index"}
 
 # ────────────────────────────────────────────────────────────
 def _preprocess_dataframe(df: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
@@ -56,21 +56,19 @@ def load_XY():
     raw_df = pd.read_csv(CSV_PATH)
     df, species_cols = _preprocess_dataframe(raw_df)
 
-    # ─ 2.  build input matrix X with v9 transformations ──────
-    X = pd.DataFrame()
+    # ─ 2.  build input matrix X (v9: T normalization, v8 element encoding) ──
+    X = df[INPUTS].copy()
     
-    # Temperature: normalize by global max
+    # Temperature: normalize by global max (v9 change)
     T_max = df["temperature"].max()
-    X["temperature_norm"] = df["temperature"] / T_max
+    X["temperature"] = X["temperature"] / T_max
     
-    # Pressure: log10 as before
-    X["log_pressure"] = np.log10(df["pressure"])
+    # Pressure: log10 (same as v8)
+    X["pressure"] = np.log10(X["pressure"])
     
-    # Elements: H-relative ratios (log10 of ratio)
-    X["log_O_H"] = np.log10(df["comp_O"] / df["comp_H"])
-    X["log_C_H"] = np.log10(df["comp_C"] / df["comp_H"])
-    X["log_N_H"] = np.log10(df["comp_N"] / df["comp_H"])
-    X["log_S_H"] = np.log10(df["comp_S"] / df["comp_H"])
+    # Elements: log10 + 9 (same as v8)
+    for col in ELEMENT_COLS:
+        X[col] = np.log10(X[col]) + 9.0
 
     # ─ 3.  target matrix Y  ──────────────────────────────────
     Y = df[species_cols].values.astype("float32")

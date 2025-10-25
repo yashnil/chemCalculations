@@ -3,7 +3,7 @@
 # ---------------------------------------------------------
 # Trains the *best-of-study* architecture on (train+val),
 # tests on held-out test, benchmarks speed, saves artefacts.
-# v9: 6 inputs, 70-15-15 split
+# v9: 7 inputs, 70-15-15 split, T normalization
 # ---------------------------------------------------------
 
 import os, json, time, joblib, numpy as np, tensorflow as tf
@@ -29,9 +29,9 @@ study = joblib.load(os.path.join(ARTE_DIR, "optuna_study.pkl"))
 best  = study.best_params
 print("Best hyper-params:", best)
 
-# ───────────────────────── 3. model (v9: 6 inputs) ─────
+# ───────────────────────── 3. model (v9: 7 inputs) ─────
 keras.backend.clear_session()
-model = keras.Sequential([keras.layers.Input((6,))])   # v9: 6 inputs
+model = keras.Sequential([keras.layers.Input((7,))])   # v9: 7 inputs
 for _ in range(best["n_layers"]):
     model.add(keras.layers.Dense(best["units"],
                                  activation=best["act"]))
@@ -90,9 +90,9 @@ with open(os.path.join(ARTE_DIR, "final_report.json"), "w") as f:
         "hyperparams" : best,
         "species"     : species,
         "T_max"       : float(T_max),         # v9: save for inference
-        "n_inputs"    : 6,                    # v9: document input count
+        "n_inputs"    : 7,                    # v9: document input count
         "input_features": ["temperature_norm", "log_pressure", 
-                          "log_O_H", "log_C_H", "log_N_H", "log_S_H"]
+                          "log_H", "log_O", "log_C", "log_N", "log_S"]
     }, f, indent=2)
 
 print("✔️  final_model.keras + report saved in artefacts/")

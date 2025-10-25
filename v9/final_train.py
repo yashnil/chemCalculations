@@ -38,14 +38,14 @@ SPECIES = [c for c in df.columns if c not in META]
 df[SPECIES] = df[SPECIES].div(df[SPECIES].sum(axis=1), axis=0)
 
 # v9 transformations
-X = pd.DataFrame()
+ELEMENT_COLS = [f"comp_{e}" for e in ("H","O","C","N","S")]
+X = df[["temperature","pressure",*ELEMENT_COLS]].copy()
+
 T_max = df["temperature"].max()
-X["temperature_norm"] = df["temperature"] / T_max
-X["log_pressure"] = np.log10(df["pressure"])
-X["log_O_H"] = np.log10(df["comp_O"] / df["comp_H"])
-X["log_C_H"] = np.log10(df["comp_C"] / df["comp_H"])
-X["log_N_H"] = np.log10(df["comp_N"] / df["comp_H"])
-X["log_S_H"] = np.log10(df["comp_S"] / df["comp_H"])
+X["temperature"] = X["temperature"] / T_max
+X["pressure"] = np.log10(X["pressure"])
+for col in ELEMENT_COLS:
+    X[col] = np.log10(X[col]) + 9.0
 
 X = scaler.transform(X).astype("float32")
 Y = df[SPECIES].values.astype("float32")
@@ -66,9 +66,9 @@ best    = study.best_params
 print("Best hyper‑params:", best)
 
 # ---------------------------------------------------------------
-# 3.  Build & compile the final model (v9: 6 inputs)
+# 3.  Build & compile the final model (v9: 7 inputs)
 # ---------------------------------------------------------------
-model = keras.Sequential([keras.layers.Input((6,))])   # v9: 6 inputs
+model = keras.Sequential([keras.layers.Input((7,))])   # v9: 7 inputs
 for _ in range(best["n_layers"]):
     model.add(keras.layers.Dense(best["units"], activation=best["act"]))
 model.add(softplus_head(len(SPECIES)))  # Already includes normalization

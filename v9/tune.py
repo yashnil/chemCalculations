@@ -28,7 +28,7 @@ def objective(trial: optuna.trial.Trial) -> float:
     lr       = trial.suggest_float("lr", 1e-4, 3e-3, log=True)
 
     model = keras.Sequential(name="surrogate")
-    model.add(keras.layers.Input((6,)))         # v9: 6 inputs
+    model.add(keras.layers.Input((7,)))         # v9: 7 inputs (same as v8)
     for _ in range(n_layers):
         model.add(keras.layers.Dense(units, activation=act))
     model.add(softplus_head(N_OUT))

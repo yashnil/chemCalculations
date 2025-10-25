@@ -4,7 +4,7 @@
 #  • loads all_gas.csv
 #  • drops T-bin 0 samples
 #  • does 70-15-15 split + scaling
-#  • v9: Temperature normalized by max, H-relative element ratios
+#  • v9: Temperature normalized by max, elements same as v8
 #  • benchmarks FastChem
 #  • writes scaler + index arrays to artefacts
 # ---------------------------------------------
@@ -60,26 +60,24 @@ plt.tight_layout(); plt.savefig("input_histograms.png", dpi=150)
 print("Saved histogram → input_histograms.png")
 
 # ───────────────────────────────────────────────────────────────
-# 1-D  feature engineering (v9)
+# 1-D  feature engineering (v9: T normalization, v8-style elements)
 # ───────────────────────────────────────────────────────────────
-X = pd.DataFrame()
+X = df[["temperature","pressure",*ELEMENT_COLS]].copy()
 
-# Temperature: normalize by global max
+# Temperature: normalize by global max (v9 change)
 T_max = df["temperature"].max()
-X["temperature_norm"] = df["temperature"] / T_max
+X["temperature"] = X["temperature"] / T_max
 
-# Pressure: log10 as before
-X["log_pressure"] = np.log10(df["pressure"])
+# Pressure: log10 (same as v8)
+X["pressure"] = np.log10(X["pressure"])
 
-# Elements: H-relative ratios (log10 of ratio)
-X["log_O_H"] = np.log10(df["comp_O"] / df["comp_H"])
-X["log_C_H"] = np.log10(df["comp_C"] / df["comp_H"])
-X["log_N_H"] = np.log10(df["comp_N"] / df["comp_H"])
-X["log_S_H"] = np.log10(df["comp_S"] / df["comp_H"])
+# Elements: log10 + 9 (same as v8)
+for col in ELEMENT_COLS:
+    X[col] = np.log10(X[col]) + 9.0
 
 Y = df[species_cols].values.astype("float32")
 
-print(f"Input features (6): {list(X.columns)}")
+print(f"Input features (7): {list(X.columns)}")
 print(f"T_max = {T_max:.2f} K")
 
 # ───────────────────────────────────────────────────────────────
