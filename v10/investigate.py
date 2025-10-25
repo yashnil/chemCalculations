@@ -13,8 +13,8 @@ import matplotlib.pyplot as plt
 # =============================================================================
 # GLOBALS
 # =============================================================================
-CSV_PATH: str = "/Users/imalsky/Desktop/FastChem-master/python/runs_mlp_all_gas/fastchem_grid_runs.csv"
-OUT_DIR:  str = "runs_mlp_all_gas"
+CSV_PATH: str = "/Users/yashnilmohanty/Desktop/FastChem-Materials/tables/all_gas.csv"
+OUT_DIR:  str = "runs_mlp_v10"
 
 BINS: int = 120
 FIGSIZE_SINGLE: Tuple[int, int] = (8, 5)

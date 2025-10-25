@@ -30,7 +30,7 @@ except Exception as e:
 # =============================================================================
 # PATHS / OUT
 # =============================================================================
-CSV_PATH: str = '/Users/yashnilmohanty/Desktop/FastChem-Materials/tables/all_gas.csv'
+CSV_PATH: str = '/Users/yashnilmohanty/Desktop/chemCalculations/v10/all_gas_v10_no_stripe.csv'
 OUT_DIR:  str = "runs_mlp_v10"
 # If present, this file should contain a 'species' column with names ranked by abundance.
 # We'll take the first TARGET_TOPK_SPECIES from it (filtered to those present in the current CSV),

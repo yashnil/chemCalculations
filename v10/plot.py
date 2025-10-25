@@ -2,7 +2,7 @@
 # plot_test_only.py
 #
 # What it does (NEW routines compatible):
-#   - Loads runs_mlp_all_gas/best_model.py and its checkpoint (from run_mlp_grid.py).
+#   - Loads runs_mlp_v10/best_model.py and its checkpoint (from run_mlp.py).
 #   - Uses ONLY the TEST split saved in the checkpoint.
 #   - Normalizes inputs exactly like training via best_model.normalize_inputs().
 #   - Runs inference -> predictions in *scaled log space*.
@@ -33,10 +33,10 @@ plt.style.use('science.mplstyle')
 # GLOBAL SETTINGS
 # =============================================================================
 # Path to the CSV used during training
-CSV_PATH: str = "/Users/imalsky/Desktop/FastChem-master/python/runs_mlp_all_gas/fastchem_grid_runs.csv"
+CSV_PATH: str = '/Users/yashnilmohanty/Desktop/chemCalculations/v10/all_gas_v10_no_stripe.csv'
 
-BEST_MODULE: str = os.path.join("runs_mlp_all_gas", "best_model.py")
-OUT_PNG: str = os.path.join("runs_mlp_all_gas", "pred_vs_true_test.png")
+BEST_MODULE: str = os.path.join("runs_mlp_v10", "best_model.py")
+OUT_PNG: str = os.path.join("runs_mlp_v10", "pred_vs_true_test.png")
 
 # Use log10 axes on the linear-space scatter
 LOG10_AXES: bool = True
