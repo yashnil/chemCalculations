@@ -258,3 +258,4 @@ print("\n📊 View main comparison plot:")
 print(f"   open {OUT_DIR}/fastchem_vs_v10_comparison.png")
 print("=" * 80)
 
+
