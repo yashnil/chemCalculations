@@ -1,0 +1,58 @@
+================================================================================
+NEW_VERS INFERENCE SPEED TEST - SUMMARY
+================================================================================
+
+TIMING RESULTS
+--------------------------------------------------------------------------------
+Device:                  cpu
+Test samples:            621
+Species predicted:       21
+Warmup runs:             10
+Timing runs:             100
+
+INFERENCE TIME (NEW_VERS)
+--------------------------------------------------------------------------------
+Full batch (621 samples):
+   Total:         5.2820 ± 2.9138 ms
+   Per sample:    0.008506 ms/sample
+
+Single sample:
+   Total:         0.310398 ± 0.210439 ms
+
+BATCH SIZE ANALYSIS
+--------------------------------------------------------------------------------
+Batch size    1:   0.4224 ms total, 0.422445 ms/sample
+Batch size   10:   0.6320 ms total, 0.063197 ms/sample
+Batch size   50:   2.9845 ms total, 0.059691 ms/sample
+Batch size  100:   1.8504 ms total, 0.018504 ms/sample
+Batch size  621:   4.1760 ms total, 0.006725 ms/sample
+
+
+SPEED COMPARISON: NEW_VERS vs FASTCHEM
+================================================================================
+FastChem (benchmark):    7.000 ms/sample
+NEW_VERS (batch):        0.008506 ms/sample
+NEW_VERS (single):       0.310398 ms/sample
+
+Speedup (batch mode):    823.0×
+Speedup (single mode):   22.6×
+
+THROUGHPUT
+--------------------------------------------------------------------------------
+FastChem:                     142.9 samples/sec
+NEW_VERS (batch):          117568.5 samples/sec
+
+FULL DATASET (12,412 samples)
+--------------------------------------------------------------------------------
+FastChem time:                 86.9 sec (1.4 min)
+NEW_VERS time:                  0.1 sec (0.0 min)
+Time saved:                    86.8 sec (1.4 min)
+
+
+ACCURACY METRICS (vs Ground Truth)
+================================================================================
+Linear MAE:              3.537720e-02
+Linear MSE:              1.862299e-01
+Log MAE:                 3.701315e-01 dex
+Log R²:                  0.950254
+Median Relative Error:   40.13%
