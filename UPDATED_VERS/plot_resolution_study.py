@@ -26,9 +26,11 @@ import pandas as pd
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Plot resolution study metrics vs dataset size.")
+    # Default to the CSV in the same directory as this script
+    default_csv = Path(__file__).parent / "comparison_metrics.csv"
     parser.add_argument(
         "--metrics-csv",
-        default="comparison_metrics.csv",
+        default=str(default_csv),
         help="Path to the CSV produced by the comparison metrics helper.",
     )
     parser.add_argument(
