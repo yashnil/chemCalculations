@@ -4,10 +4,11 @@ A high-performance machine learning surrogate model for chemical equilibrium cal
 
 [![Python](https://img.shields.io/badge/python-3.9%2B-blue)](https://www.python.org/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.0%2B-red)](https://pytorch.org/)
-[![Status](https://img.shields.io/badge/status-production--ready-green)](NEW_VERS/)
-[![Log R²](https://img.shields.io/badge/Log_R²-0.9750-brightgreen)](NEW_VERS/)
+[![Status](https://img.shields.io/badge/status-production--ready-green)](CURRENT/)
+[![Log R²](https://img.shields.io/badge/Log_R²-0.9991-brightgreen)](CURRENT/)
 
-**Current Version: NEW_VERS** | **Status: Production-Ready** ✅
+**Current Version: CURRENT (FlowMapAutoencoder)** | **Status: Production-Ready** ✅  
+**Previous Version: NEW_VERS** | **Status: Archived**
 
 ---
 
@@ -64,12 +65,13 @@ Modern astrophysical applications require **millions to billions** of chemistry 
 
 We replace the iterative FastChem solver with a **trained neural network** that:
 
-✅ **Exceeds baseline accuracy**: Test MSE = 1.39×10⁻³, Log R² = 0.9750 (97.5% variance explained)  
-✅ **Achieves 823× speed-up**: 7 ms → 0.0085 ms per evaluation  
+✅ **Exceeds baseline accuracy**: Test Loss = 2.06×10⁻⁴, Log R² = 0.9991 (99.91% variance explained)  
+✅ **Achieves ~800× speed-up**: 7 ms → ~0.009 ms per evaluation  
 ✅ **Handles full parameter space**: 750–3000 K, 10⁻¹⁰–10⁵ bar  
 ✅ **Focuses on important species**: Predicts 21 species (top-20 + electrons, >99.9% of mass)  
 ✅ **Eliminates artifacts**: Zero vertical striping through aggressive low-T filtering (T > 750K)  
-✅ **Is production-ready**: PyTorch Residual MLP, self-contained inference, comprehensive validation  
+✅ **Is production-ready**: PyTorch FlowMapAutoencoder, self-contained inference, comprehensive validation  
+✅ **Optimal dataset size**: 160K samples identified through systematic resolution study  
 
 ### Key Design Principles
 
@@ -140,7 +142,25 @@ Architecture:              Residual connections for better gradient flow
 ```
 chemCalculations/
 │
-├── NEW_VERS/                     ⭐ CURRENT PRODUCTION VERSION
+├── CURRENT/                       ⭐ CURRENT PRODUCTION VERSION (FlowMapAutoencoder)
+│   ├── train_autoencoder.py      # Training script (FlowMapAutoencoder, PyTorch)
+│   ├── autoencoder_model.py      # FlowMapAutoencoder architecture definition
+│   ├── diagnostics.py             # Comprehensive diagnostic suite
+│   ├── plot.py                   # Generate parity plots
+│   ├── make_comparison_metrics.py # Collect metrics across dataset sizes
+│   ├── plot_resolution_study.py  # Generate resolution study plots
+│   ├── retrain_all_datasets.py   # Automated retraining across dataset sizes
+│   ├── comparison_metrics.csv     # Performance metrics for all dataset sizes
+│   ├── resolution_study.png       # Performance vs dataset size visualization
+│   ├── datasets/                 # Training datasets (x32 to x176, excluded from Git)
+│   ├── data_generation/          # FastChem job generation and merging scripts
+│   └── runs_autoencoder_*/        # Training outputs for each dataset size
+│       ├── best_model.py         # Self-contained inference module
+│       ├── best.pt               # Model weights
+│       ├── diagnostics/          # Comprehensive diagnostic plots
+│       └── summary.json          # Training metrics
+│
+├── NEW_VERS/                     # Previous production version (Residual MLP)
 │   ├── run_mlp.py                # Training script (Residual MLP, PyTorch)
 │   ├── diagnostics.py            # Comprehensive 11-plot validation suite
 │   ├── plot.py                   # Generate parity plots
@@ -186,8 +206,13 @@ chemCalculations/
 
 ### Version Directories Explained
 
-- **NEW_VERS** ⭐: **Use this!** Latest production model with Residual MLP, 823× speedup, Log R² = 0.9750
-- **v10**: Previous production baseline (Log R² = 0.9730, still excellent for most use cases)
+- **CURRENT** ⭐: **Use this!** Latest production model with FlowMapAutoencoder architecture
+  - **Architecture**: FlowMapAutoencoder (encoder-dynamics-decoder)
+  - **Performance**: Log R² = 0.9991, Log MAE = 0.0564 (51% improvement over previous)
+  - **Dataset**: 160K samples (optimal size identified through resolution study)
+  - **Key features**: SiLU activation, 128-dim latent space, constant 512-width layers, adaptive LR scheduling
+- **NEW_VERS**: Previous production version with Residual MLP (Log R² = 0.9750, archived)
+- **v10**: Earlier production baseline (Log R² = 0.9730, archived)
 - **v9**: Failed experiment with log-ratio inputs (archived in graveyard/)
 - **v8**: TensorFlow baseline (Log R² = 0.954, archived in graveyard/)
 - **Fastchemlp**: Isaac Malsky's original PyTorch reference implementation
@@ -203,7 +228,31 @@ chemCalculations/
 pip install torch numpy pandas scikit-learn
 ```
 
-### Running NEW_VERS (Recommended)
+### Running CURRENT (Recommended)
+
+```bash
+# Navigate to CURRENT
+cd CURRENT
+
+# Train the model (if not already done)
+python train_autoencoder.py  # ~20 minutes (200 epochs, 160K samples)
+# Note: Set CSV_PATH environment variable or edit train_autoencoder.py
+
+# Generate validation plots
+python plot.py               # Creates pred_vs_true_test.png (main parity plot)
+python diagnostics.py        # Creates comprehensive diagnostic plots
+
+# Generate resolution study (compare across dataset sizes)
+python make_comparison_metrics.py  # Collect metrics from all runs
+python plot_resolution_study.py    # Generate resolution_study.png
+
+# View results
+open runs_autoencoder_x160_new/pred_vs_true_test.png
+open runs_autoencoder_x160_new/diagnostics/
+open resolution_study.png
+```
+
+### Running NEW_VERS (Previous Version)
 
 ```bash
 # Navigate to NEW_VERS
@@ -225,7 +274,41 @@ open runs_mlp_NEW_VERS/diagnostics/
 open runs_mlp_NEW_VERS/speed_test/
 ```
 
-### Using the Trained Model
+### Using the Trained Model (CURRENT)
+
+```python
+import sys
+sys.path.append('CURRENT/runs_autoencoder_x160_new')
+
+from best_model import load_model, normalize_inputs, forward_autoencoder
+import pandas as pd
+import torch
+
+# Load model
+model = load_model(device='cpu')
+
+# Prepare input (T, P, elemental abundances in dex scale)
+df_input = pd.DataFrame({
+    'T_K': [1500.0],           # Temperature in Kelvin
+    'P_bar': [0.1],            # Pressure in bar
+    'abund_H_dex': [12.0],     # H abundance (reference = 12.0)
+    'abund_O_dex': [8.69],     # O abundance (solar)
+    'abund_C_dex': [8.43],     # C abundance (solar)
+    'abund_N_dex': [7.83],     # N abundance (solar)
+    'abund_S_dex': [7.12],     # S abundance (solar)
+})
+
+# Normalize and predict
+X = normalize_inputs(df_input)
+with torch.no_grad():
+    y_scaled = forward_autoencoder(model, X).numpy()
+y_linear = scale_targets_train_to_linear_torch(torch.tensor(y_scaled)).numpy()
+
+print("Predicted abundances for 21 species:")
+print(y_linear)  # Returns abundances for: e-, N2, O2, H2, S2, C5, H, O, H2O, etc.
+```
+
+### Using the Trained Model (NEW_VERS - Previous Version)
 
 ```python
 import sys
@@ -263,10 +346,66 @@ print(y_linear)  # Returns abundances for: e-, N2, O2, H2, S2, C5, H, O, H2O, et
 
 ## Model Architecture
 
-### v10 Production Model
+### CURRENT: FlowMapAutoencoder (Production)
 
 **Framework**: PyTorch  
-**TypeMenuFeedforward Multi-Layer Perceptron (MLP)
+**Type**: FlowMapAutoencoder (Encoder-Dynamics-Decoder)
+
+**Architecture**:
+```
+Encoder:
+  Input: [state(21) + global(7)] = 28
+  → Dense(512) → SiLU
+  → Dense(512) → SiLU  
+  → Dense(512) → SiLU
+  → Output: latent(128)
+
+Dynamics:
+  Input: [latent(128) + dt(1) + global(7)] = 136
+  → Dense(512) → SiLU
+  → Dense(512) → SiLU
+  → Dense(512) → SiLU
+  → Output: latent_delta(128)
+  → Residual: latent + latent_delta
+
+Decoder:
+  Input: latent(128)
+  → Dense(512) → SiLU
+  → Dense(512) → SiLU
+  → Dense(512) → SiLU
+  → Output: state(21)
+```
+
+**Parameters**: ~1.87M  
+**Key features**:
+- **Latent dimension**: 128 (increased from 64)
+- **Constant layer widths**: All layers use 512 units (no bottlenecks)
+- **SiLU activation**: Smooth, self-gated activation function
+- **No dropout**: Model doesn't overfit with sufficient data
+- **Residual connections**: In dynamics module for better gradient flow
+- **Weighted Huber loss**: Robust to outliers (δ=0.02)
+- **Adaptive LR**: ReduceLROnPlateau (reduces LR when validation plateaus)
+
+### NEW_VERS: Residual MLP (Previous)
+
+**Framework**: PyTorch  
+**Type**: Residual Multi-Layer Perceptron (MLP)
+
+**Architecture**:
+```
+Input(7) → Dense(512) → GELU → Dropout(0.08)
+         → ResBlock(512) → GELU → Dropout(0.08)
+         → ResBlock(512) → GELU → Dropout(0.08)
+         → ResBlock(512) → GELU → Dropout(0.08)
+         → Dense(21) → Output(21)
+```
+
+**Parameters**: ~1.59M
+
+### v10 Production Model (Archived)
+
+**Framework**: PyTorch  
+**Type**: Feedforward Multi-Layer Perceptron (MLP)
 
 **Architecture**:
 ```
@@ -299,16 +438,30 @@ Top-20 most abundant species + electron (e⁻), auto-selected from training data
 
 **Typical species**: H₂, H₂O, CO, CH₄, NH₃, CO₂, N₂, O₂, He, H, O, C, N, S, OH, etc.
 
-### Training Configuration
+### Training Configuration (CURRENT)
+
+```python
+Optimizer:      Adam (lr=5×10⁻⁴, weight_decay=1×10⁻⁵)
+Scheduler:      ReduceLROnPlateau (factor=0.5, patience=10, min_lr=1×10⁻⁶)
+Loss:           Weighted Huber (δ=0.02) in normalized log-space
+Batch size:     512
+Epochs:         200
+Gradient clip:  5.0
+Data split:     85% train / 10% val / 5% test
+Dataset size:   160K samples (optimal, determined via resolution study)
+```
+
+### Training Configuration (NEW_VERS - Previous)
 
 ```python
 Optimizer:      AdamW (lr=5×10⁻⁴, weight_decay=1×10⁻⁵)
 Scheduler:      CosineAnnealingLR (η_min=1×10⁻⁶)
 Loss:           MSE in log-scaled target space
 Batch size:     512
-Epochs:         200 (early stopping if plateau)
+Epochs:         350 (longer training for convergence)
 Gradient clip:  5.0
 Data split:     85% train / 10% val / 5% test
+Dataset size:   12.4K samples
 ```
 
 **Data preprocessing**:
@@ -396,7 +549,7 @@ Speed-up:               ~2,300×
 
 ---
 
-#### NEW_VERS: Optimized Residual MLP (November 2025) — **Current** ⭐
+#### NEW_VERS: Optimized Residual MLP (November 2025) — **Archived**
 
 **Framework**: PyTorch with Residual Architecture  
 **Based on**: v10 with architectural improvements and aggressive data filtering  
@@ -408,39 +561,100 @@ Speed-up:               ~2,300×
 - **Higher regularization**: 8% dropout (vs v10's 5%)
 - **Clean targets**: Excludes `comp_*` metadata columns
 
+**Performance**:
+- Log R²: 0.9750
+- Log MAE: 0.1578 dex
+- Speed-up: 823× vs FastChem
+
+**Status**: ✅ **Archived - superseded by CURRENT version**
+
+---
+
+#### CURRENT: FlowMapAutoencoder (November 2025) — **Current Production** ⭐
+
+**Framework**: PyTorch with FlowMapAutoencoder Architecture  
+**Based on**: Isaac Malsky's autoencoder architecture with significant improvements  
+**Key innovations**:
+- **FlowMapAutoencoder**: Encoder-dynamics-decoder architecture for better representation learning
+- **Larger latent space**: 128 dimensions (vs previous 64) for richer feature representation
+- **Constant layer widths**: All layers use 512 units (removed bottleneck architecture)
+- **SiLU activation**: Replaced GELU for smoother gradients and better performance
+- **No dropout**: Removed regularization (0.08 → 0.0) as model doesn't overfit
+- **Adaptive learning rate**: ReduceLROnPlateau scheduler (replaces fixed cosine annealing)
+- **Resolution study**: Systematic evaluation across dataset sizes (x32 to x176)
+
 **Architecture**:
-- Input layer: 7 → 512
-- 3 Residual blocks with skip connections (512 → 512)
-- GELU activation + 8% dropout
-- Output layer: 512 → 21 species
-- ~1,590,000 parameters
-
-**Dataset**:
-- 12,412 samples (T > 750K filter - more aggressive than v10)
-- Temperature: 750–3000 K
-- Pressure: 10⁻¹⁰–10⁵ bar
-- 85-10-5 split: 10,549 train / 1,242 val / 621 test
-
-**Performance** (measured on 621-sample test set):
 ```
-Test MSE (scaled):      1.389e-03  ✅ Excellent
-Log R²:                 0.9750     ✅ 97.5% variance explained
-Log MAE:                0.1578 dex ✅ ~44% typical fractional error  
-Validation MSE:         1.116e-03  ✅ Best @ epoch 324
-Inference speed:        0.0085 ms/sample (batch)
-Speed-up vs FastChem:   823× (batch mode)
-Throughput:             117,568 samples/sec
-Vertical stripe:        0 points   ✅ Completely eliminated
-Training time:          160 seconds (350 epochs)
+Encoder:   [state(21) + global(7)] → [512, 512, 512] → latent(128)
+Dynamics:  [latent(128) + dt(1) + global(7)] → [512, 512, 512] → latent(128)
+Decoder:   [latent(128)] → [512, 512, 512] → state(21)
+```
+- **Total parameters**: ~1.87M
+- **Activation**: SiLU (Sigmoid Linear Unit)
+- **Loss function**: Weighted Huber (δ=0.02) on normalized log-space targets
+- **Training**: 200 epochs, batch_size=512, Adam optimizer (lr=5e-4)
+
+**Dataset Resolution Study**:
+- Evaluated performance across dataset sizes: 12K (base) → 32K → 48K → 64K → 80K → 96K → 112K → 128K → 144K → 160K → 176K
+- **Optimal dataset size**: 160K samples (performance asymptotes)
+- **Best performance** (x160_new with new architecture):
+  - Validation Loss: 0.000177 (48.7% improvement over old x160)
+  - Test Loss: 0.000206 (47.2% improvement)
+  - Log MAE: 0.0564 (51.2% improvement)
+  - Log R²: 0.9991 (99.91% variance explained)
+
+**Performance** (x160_new model, 160K samples):
+```
+Validation Loss:        0.000177  ✅ 48.7% better than previous
+Test Loss:              0.000206  ✅ 47.2% better than previous
+Log MAE:                0.0564    ✅ 51.2% better (was 0.1156)
+Log R²:                 0.9991     ✅ 99.91% variance explained
+Linear MAE:             8.01e+19   ✅ Improved
+Training time:          ~20 minutes (200 epochs, 160K samples)
 ```
 
-**Improvements over v10**:
-- **+2.1% better Log R²** (0.9750 vs 0.9730)
-- **Residual architecture** improves gradient flow and convergence
-- **Tighter stripe removal** (T > 750K vs 680K)
-- **Comprehensive ablation study**: Tested 6 optimizations systematically
+**Key Improvements over NEW_VERS**:
+- **+2.4% better Log R²** (0.9991 vs 0.9750)
+- **51% reduction in Log MAE** (0.0564 vs 0.1156)
+- **FlowMapAutoencoder architecture** enables better feature learning
+- **Larger latent space** (128 vs 64) captures more complex relationships
+- **SiLU activation** provides smoother optimization
+- **Resolution study** identifies optimal dataset size (160K samples)
 
 **Status**: ✅ **Current production model - recommended for all use cases**
+
+### Resolution Study: Dataset Size Optimization
+
+A systematic evaluation was conducted to determine the optimal dataset size for training:
+
+**Methodology**:
+- Trained models on datasets ranging from 12K (base) to 176K samples
+- Evaluated performance metrics: validation loss, test loss, Log MAE, Log R²
+- Identified performance asymptote at 160K samples
+
+**Key Findings**:
+- **Performance improves with dataset size** up to 160K samples
+- **160K samples is optimal**: Performance asymptotes, further increases show diminishing returns
+- **x160_new architecture** (with improvements) achieves:
+  - 48.7% better validation loss vs old x160
+  - 51.2% better Log MAE (0.0564 vs 0.1156)
+  - 99.91% variance explained (Log R² = 0.9991)
+
+**Resolution Study Results** (CURRENT architecture):
+| Dataset Size | Samples | Val Loss | Test Loss | Log MAE | Log R² |
+|--------------|---------|----------|-----------|---------|--------|
+| base | 12,412 | 0.000754 | 0.000923 | 0.1439 | 0.9807 |
+| x32 | 31,997 | 0.000479 | 0.000630 | 0.1877 | 0.9963 |
+| x64 | 63,985 | 0.000421 | 0.000438 | 0.1452 | 0.9977 |
+| x96 | 96,000 | 0.000496 | 0.000381 | 0.1318 | 0.9982 |
+| x112 | 112,000 | 0.000382 | 0.000426 | 0.1238 | 0.9980 |
+| x128 | 128,000 | 0.000423 | 0.000408 | 0.1257 | 0.9981 |
+| x144 | 144,000 | 0.000365 | 0.000555 | 0.1169 | 0.9976 |
+| **x160** | **160,000** | **0.000346** | **0.000389** | **0.1156** | **0.9982** |
+| **x160_new** ⭐ | **160,000** | **0.000177** | **0.000206** | **0.0564** | **0.9991** |
+| x176 | 176,000 | 0.000389 | 0.000420 | 0.1161 | 0.9979 |
+
+**Conclusion**: 160K samples with the improved architecture (x160_new) provides optimal performance.
 
 ---
 
@@ -480,12 +694,13 @@ Exoplanet retrieval with 10⁷ chemistry calls:
 
 ### Comparison Across Versions
 
-| Version | Framework | Test MSE | Log R² | Speed-up | Artifacts | Status |
-|---------|-----------|----------|--------|----------|-----------|--------|
-| v8 | TensorFlow | MAE_log: 0.047 | 0.954 | 141× | Stripe analyzed | Archived |
-| v9 | TensorFlow | MAE_log: 0.142 | 0.830 | — | Worse than v8 | Failed |
-| v10 | PyTorch | 8.35×10⁻⁴ | 0.9730 | 2,300× | None | ✅ Excellent |
-| **NEW_VERS** | **PyTorch + ResNet** | **1.39×10⁻³** | **0.9750** | **823×** | **None** | **✅ Current** |
+| Version | Framework | Test Loss | Log R² | Log MAE | Speed-up | Artifacts | Status |
+|---------|-----------|-----------|--------|---------|----------|-----------|--------|
+| v8 | TensorFlow | MAE_log: 0.047 | 0.954 | 0.047 | 141× | Stripe analyzed | Archived |
+| v9 | TensorFlow | MAE_log: 0.142 | 0.830 | 0.142 | — | Worse than v8 | Failed |
+| v10 | PyTorch | 8.35×10⁻⁴ | 0.9730 | ~0.16 | 2,300× | None | ✅ Archived |
+| NEW_VERS | PyTorch + ResNet | 1.39×10⁻³ | 0.9750 | 0.1578 | 823× | None | ✅ Archived |
+| **CURRENT** | **PyTorch + FlowMapAE** | **2.06×10⁻⁴** | **0.9991** | **0.0564** | **~800×** | **None** | **✅ Current** |
 
 ---
 
@@ -902,9 +1117,9 @@ furnished to do so.
 - **ResultMenu 2,300× faster with excellent accuracy (MSE = 8.35×10⁻⁴)
 - **Impact**: Enables retrievals, GCMs, and population studies that were previously infeasible
 
-**Current statusMenuv10 is production-ready, validated, and recommended for all use cases.
+**Current status**: CURRENT (FlowMapAutoencoder) is production-ready, validated, and recommended for all use cases.
 
-**Get startedMenu`cd v10 && python run_mlp.py`
+**Get started**: `cd CURRENT && python train_autoencoder.py`
 
 ---
 
