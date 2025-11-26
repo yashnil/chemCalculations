@@ -1,0 +1,6 @@
+Linear MAE:  1.648112e+20
+Linear R²:   0.759583
+Log MAE:     1.451658e-01
+Log R²:      0.997707
+Test samples: 3200
+Species:     21
