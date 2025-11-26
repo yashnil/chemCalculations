@@ -4,3 +4,12 @@ UPDATED_VERS/runs_autoencoder_*/
 UPDATED_VERS/resolution_study.png
 UPDATED_VERS/__pycache__/
 
+# CURRENT directory - exclude large datasets and job results
+CURRENT/datasets/
+CURRENT/fastchem_jobs_*/
+CURRENT/runs_autoencoder_*/
+CURRENT/__pycache__/
+*.pyc
+__pycache__/
+.DS_Store
+
