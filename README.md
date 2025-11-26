@@ -189,9 +189,9 @@ chemCalculations/
 ├── v8/                           # TensorFlow baseline (working)
 │   └── [Archived in graveyard/ - TensorFlow/Keras + composite loss]
 │
-├── Fastchemlp/                   # Isaac Malsky's reference implementation
+├── Fastchemlp/                   # Reference implementation
 │   ├── run.py                    # Original PyTorch code (basis for v10/NEW_VERS)
-│   └── runs_mlp_all_gas/         # Isaac's trained model
+│   └── runs_mlp_all_gas/         # Reference trained model
 │
 ├── graveyard/                    # Historical versions (v1-v9)
 │   ├── v8/                       # TensorFlow baseline (Log R² = 0.954)
@@ -215,7 +215,7 @@ chemCalculations/
 - **v10**: Earlier production baseline (Log R² = 0.9730, archived)
 - **v9**: Failed experiment with log-ratio inputs (archived in graveyard/)
 - **v8**: TensorFlow baseline (Log R² = 0.954, archived in graveyard/)
-- **Fastchemlp**: Isaac Malsky's original PyTorch reference implementation
+- **Fastchemlp**: Original PyTorch reference implementation
 - **graveyard**: Complete development history (v1-v9)
 
 ---
@@ -523,7 +523,6 @@ Dataset size:   12.4K samples
 #### v10: PyTorch Production Baseline (October 2025)
 
 **Framework**: PyTorch (clean, modern, faster)  
-**Based on**: Isaac Malsky's proven implementation  
 **Key features**:
 - Simple normalization: T/4000, (abund_dex-12)/10, log₁₀/30
 - Focus on top-20 species (reduced noise)
@@ -573,7 +572,6 @@ Speed-up:               ~2,300×
 #### CURRENT: FlowMapAutoencoder (November 2025) — **Current Production** ⭐
 
 **Framework**: PyTorch with FlowMapAutoencoder Architecture  
-**Based on**: Isaac Malsky's autoencoder architecture with significant improvements  
 **Key innovations**:
 - **FlowMapAutoencoder**: Encoder-dynamics-decoder architecture for better representation learning
 - **Larger latent space**: 128 dimensions (vs previous 64) for richer feature representation
@@ -857,7 +855,7 @@ If you use this emulator in your research, please cite:
 
 ```bibtex
 @software{fastchem_ml_emulator_2025,
-  author = {Mohanty, Yashnil and Malsky, Isaac},
+  author = {Mohanty, Yashnil; Malsky, Isaac; Zhang, Xi},
   title = {FastChem Neural Network Emulator: A PyTorch Surrogate Model 
            for Chemical Equilibrium in Planetary Atmospheres},
   year = {2025},
@@ -1027,7 +1025,7 @@ CSV_PATH = '.../all_gas_v10_no_stripe.csv'
 - Check data: Are there non-finite values?
 - Try: Increase EPOCHS or HIDDEN size in run_mlp.py
 
-**"Different results from Isaac's"**
+**"Different results"**
 - Verify: Using filtered data (T > 680K)
 - Verify: Same hyperparameters (512×3, LeakyReLU)
 - Check: Random seed (SEED=1337)
@@ -1080,7 +1078,7 @@ scipy >= 1.7 (optional, for KDE density plots)
 
 MIT License
 
-Copyright (c) 2025 Yashnil Mohanty, Isaac Malsky
+Copyright (c) 2025 Yashnil Mohanty, Xi Zhang, Isaac Malsky
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
