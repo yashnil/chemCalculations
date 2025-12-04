@@ -10,12 +10,14 @@ architecture supplied by the user.
 
 Usage:
     python train_autoencoder.py
+    python train_autoencoder.py --loss-type mse --run-dir runs_autoencoder_x160_mse
 
 Outputs are written to `runs_autoencoder/` (checkpoints, loss curves, metrics).
 """
 
 from __future__ import annotations
 
+import argparse
 import json
 import logging
 import math
@@ -434,9 +436,23 @@ if __name__ == "__main__":
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description="Train FlowMapAutoencoder with configurable loss function")
+    parser.add_argument("--loss-type", type=str, default="huber", choices=["huber", "mse"],
+                        help="Loss function: 'huber' (weighted) or 'mse' (plain MSE in normalized space)")
+    parser.add_argument("--run-dir", type=str, default=None,
+                        help="Output directory (default: runs_autoencoder_{dataset_tag})")
+    args = parser.parse_args()
+    
+    # Update OUT_DIR if specified
+    global OUT_DIR
+    if args.run_dir:
+        OUT_DIR = Path(args.run_dir)
+    
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     set_seed(SEED)
 
+    log.info("Training with loss type: %s", args.loss_type)
+    log.info("Output directory: %s", OUT_DIR)
     log.info("Loading CSV: %s", CSV_PATH)
     df = pd.read_csv(CSV_PATH)
     log.info("Loaded: %s rows × %s cols", fmt(len(df)), fmt(len(df.columns)))
@@ -494,7 +510,14 @@ def main() -> None:
         LATENT_DIM,
     )
 
-    criterion = WeightedHuber(delta=0.02, weights=torch.as_tensor(weights, dtype=torch.float32, device=device))
+    # Select loss function based on argument
+    if args.loss_type == "mse":
+        criterion = nn.MSELoss()
+        log.info("Using MSE loss (plain) in normalized space")
+    else:
+        criterion = WeightedHuber(delta=0.02, weights=torch.as_tensor(weights, dtype=torch.float32, device=device))
+        log.info("Using Weighted Huber loss (delta=0.02)")
+    
     optimizer = torch.optim.Adam(model.parameters(), lr=LR, weight_decay=WEIGHT_DECAY)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
         optimizer, mode='min', factor=0.5, patience=10, min_lr=1e-6
@@ -502,6 +525,16 @@ def main() -> None:
 
     best_val = math.inf
     best_path = OUT_DIR / "best.pt"
+    best_py = OUT_DIR / "best_model.py"
+    
+    # Track loss history for plotting
+    loss_history = {
+        "epoch": [],
+        "train_loss": [],
+        "val_loss": [],
+        "val_mse": [],
+        "val_mae": []
+    }
 
     for epoch in range(1, EPOCHS + 1):
         model.train()
@@ -524,6 +557,14 @@ def main() -> None:
         train_loss = float(np.mean(ep_losses))
         val_res = evaluate(model, val_loader, device)
         scheduler.step(val_res.loss)
+        
+        # Record history
+        loss_history["epoch"].append(epoch)
+        loss_history["train_loss"].append(train_loss)
+        loss_history["val_loss"].append(val_res.loss)
+        loss_history["val_mse"].append(val_res.mse)
+        loss_history["val_mae"].append(val_res.mae)
+        
         log.info(
             "Epoch %03d | train=%.4f | val_loss=%.4f | val_MSE=%.4e | val_MAE=%.4e | time=%.1fs",
             epoch,
@@ -572,6 +613,11 @@ def main() -> None:
         test_res.mse,
         test_res.mae,
     )
+    
+    # Save loss history to CSV
+    loss_df = pd.DataFrame(loss_history)
+    loss_df.to_csv(OUT_DIR / "loss_history.csv", index=False)
+    log.info("Loss history saved to %s", OUT_DIR / "loss_history.csv")
 
     splits = {
         "train_idx": idx_train.tolist(),
@@ -579,7 +625,6 @@ def main() -> None:
         "test_idx": idx_test.tolist(),
     }
 
-    best_py = OUT_DIR / "best_model.py"
     write_best_model_py(
         best_py,
         best_path,
@@ -594,6 +639,7 @@ def main() -> None:
         "train_samples": len(train_ds),
         "val_samples": len(val_ds),
         "test_samples": len(test_ds),
+        "loss_type": args.loss_type,
         "val_loss": best_val,
         "test_loss": test_res.loss,
         "test_mse_linear": test_res.mse,
