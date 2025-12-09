@@ -2,6 +2,7 @@
   "train_samples": 136000,
   "val_samples": 16000,
   "test_samples": 8000,
+  "loss_type": "huber",
   "val_loss": 0.00017745420620940422,
   "test_loss": 0.00020550652197925956,
   "test_mse_linear": Infinity,
@@ -160069,6 +160070,6 @@
       32117
     ]
   },
-  "best_model_py": "runs_autoencoder/best_model.py",
-  "checkpoint_path": "runs_autoencoder/best.pt"
+  "best_model_py": "runs_autoencoder_x160_new/best_model.py",
+  "checkpoint_path": "runs_autoencoder_x160_new/best.pt"
 }

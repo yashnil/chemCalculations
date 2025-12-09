@@ -74,9 +74,14 @@ def plot_loss_curves(run_tags: List[str], base_dir: Path, output_path: Path):
         axes[0].plot(history["epoch"], history["val_loss"], 
                     color=color, linestyle="--", linewidth=2, label=f"{label} val")
         
-        # Plot MAE curves
-        axes[1].semilogy(history["epoch"], history["val_mae"], 
+        # Plot Log MAE curves (preferred) or fallback to linear MAE
+        if "val_log_mae" in history.columns:
+            axes[1].plot(history["epoch"], history["val_log_mae"], 
                         color=color, linewidth=2, label=label)
+        else:
+            # Fallback to linear MAE if log MAE not available (for older runs)
+            axes[1].semilogy(history["epoch"], history["val_mae"], 
+                            color=color, linewidth=2, label=label, linestyle=":")
     
     axes[0].set_xlabel("Epoch", fontsize=12)
     axes[0].set_ylabel("Loss (Normalized Space)", fontsize=12)
@@ -85,8 +90,8 @@ def plot_loss_curves(run_tags: List[str], base_dir: Path, output_path: Path):
     axes[0].grid(True, alpha=0.3)
     
     axes[1].set_xlabel("Epoch", fontsize=12)
-    axes[1].set_ylabel("Validation MAE (Linear Space)", fontsize=12)
-    axes[1].set_title("Validation MAE", fontsize=14, fontweight="bold")
+    axes[1].set_ylabel("Validation Log MAE", fontsize=12)
+    axes[1].set_title("Validation Log MAE", fontsize=14, fontweight="bold")
     axes[1].legend(fontsize=9, loc="best")
     axes[1].grid(True, alpha=0.3)
     

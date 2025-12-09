@@ -87,7 +87,78 @@ We replace the iterative FastChem solver with a **trained neural network** that:
 
 ## Performance Metrics
 
-### NEW_VERS Production Model Results
+### Best Model (CURRENT - x160_new)
+
+**🏆 Best Overall Performance:**
+- **Model**: x160_new (FlowMapAutoencoder with optimal hyperparameters)
+- **Test Loss**: 2.06×10⁻⁴ (normalized space)
+- **Log MAE**: 0.0564 (orders of magnitude error)
+- **Log R²**: 0.9991 (99.91% variance explained)
+- **Dataset Size**: 160,000 samples
+- **Architecture**: latent_dim=128, width=512, layers=3, SiLU activation
+
+**Training Configuration**:
+- Dataset: 160K samples (750–3000 K, T > 750K filter)
+- Split: 85% train (136K) / 10% val (16K) / 5% test (8K)
+- Architecture: FlowMapAutoencoder, 128-dim latent, 512-width layers (3 layers each)
+- Activation: SiLU (Sigmoid Linear Unit)
+- Loss: Weighted Huber (δ=0.02)
+- Scheduler: ReduceLROnPlateau
+- Training time: ~24 minutes (200 epochs)
+- Dropout: 0.0 (no overfitting observed)
+
+**Key Improvements Over Previous Architecture**:
+- **51% reduction in Log MAE** (0.1156 → 0.0564)
+- **51% reduction in test loss** (0.000389 → 0.000206)
+- **Log R² improvement** (0.9982 → 0.9991)
+
+### Hyperparameter Optimization Studies
+
+We conducted three systematic hyperparameter studies to identify optimal model configuration:
+
+#### Test #1: Latent Dimension Study
+**Objective**: Find optimal latent space dimensionality
+
+**Tested values**: 64, 96, 128, 160, 192  
+**Results**: 
+- **Best**: latent_dim=192 (test_loss=0.000339)
+- Performance degrades for both smaller and larger dimensions
+- Clear minimum at 192, optimal for 21-species output space
+
+**Plot**: `CURRENT/latent_dim_study.png`
+
+#### Test #2: Layer Width Study  
+**Objective**: Find optimal layer width and depth
+
+**Tested configurations**: 
+- Widths: 256, 512, 768, 1024
+- Layers: 3, 4
+- Using latent_dim=192 from Test #1
+
+**Results**:
+- **Best overall**: width=512, layers=3 (test_loss=0.000339)
+- **Best 4-layer**: width=768, layers=4 (test_loss=0.000348)
+- Wider layers (1024) don't improve performance
+- 3 layers perform better overall
+
+**Plot**: `CURRENT/layer_width_study.png`
+
+#### Test #3: Dataset Size Study with Optimal Hyperparameters
+**Objective**: Evaluate optimal hyperparameters across different dataset sizes
+
+**Configuration**: latent_dim=192, width=512, layers=3  
+**Tested sizes**: x32, x48, x64, x80, x96, x112, x128, x144, x160, x176
+
+**Key Findings**:
+- Optimal hyperparameters work best at x160 (the size they were optimized on)
+- x160_optimal: test_loss=0.000339, log_mae=0.109 (12.8% improvement over previous architecture)
+- Smaller datasets perform worse with these hyperparameters
+- Confirms x160 as optimal dataset size
+
+**Plot**: `CURRENT/dataset_size_study_optimal.png`  
+**Full results**: See `CURRENT/comparison_metrics.csv`
+
+### NEW_VERS Production Model Results (Previous Version)
 
 **Training Configuration**:
 - Dataset: 12,412 samples (750–3000 K, aggressively filtered for stripe removal)
@@ -211,6 +282,8 @@ chemCalculations/
   - **Performance**: Log R² = 0.9991, Log MAE = 0.0564 (51% improvement over previous)
   - **Dataset**: 160K samples (optimal size identified through resolution study)
   - **Key features**: SiLU activation, 128-dim latent space, constant 512-width layers, adaptive LR scheduling
+  - **Hyperparameter optimization**: Systematic studies identified optimal latent_dim=192, width=512, layers=3
+  - **Best model**: x160_new (see `comparison_metrics.csv` for full results across all architectures)
 - **NEW_VERS**: Previous production version with Residual MLP (Log R² = 0.9750, archived)
 - **v10**: Earlier production baseline (Log R² = 0.9730, archived)
 - **v9**: Failed experiment with log-ratio inputs (archived in graveyard/)

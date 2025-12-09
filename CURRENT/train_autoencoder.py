@@ -58,14 +58,14 @@ TEST_FRAC = 0.05
 assert abs(TRAIN_FRAC + VAL_FRAC + TEST_FRAC - 1.0) < 1e-8
 
 # optimisation
-EPOCHS = 200
+EPOCHS = 50
 BATCH_SIZE = 512
 LR = 5e-4
 WEIGHT_DECAY = 1e-5
 GRAD_CLIP = 5.0
 
 # autoencoder architecture
-LATENT_DIM = 128
+LATENT_DIM = 96
 ENCODER_HIDDEN = [512, 512, 512]
 DYNAMICS_HIDDEN = [512, 512, 512]
 DECODER_HIDDEN = [512, 512, 512]
@@ -280,12 +280,13 @@ class EvalResult:
     loss: float
     mse: float
     mae: float
+    log_mae: float = 0.0
 
 
 def evaluate(model: FlowMapAutoencoder, loader: DataLoader, device: torch.device) -> EvalResult:
     model.eval()
     criterion = nn.MSELoss()
-    losses, mses, maes = [], [], []
+    losses, mses, maes, log_maes = [], [], [], []
 
     with torch.no_grad():
         for g, y in loader:
@@ -301,15 +302,22 @@ def evaluate(model: FlowMapAutoencoder, loader: DataLoader, device: torch.device
             pred_lin = scale_targets_train_to_linear_tensor(pred)
             mse = criterion(pred_lin, y_lin)
             mae = torch.mean((pred_lin - y_lin).abs())
+            
+            # Compute log MAE
+            y_log = torch.log10(torch.clamp(y_lin, min=1e-30))
+            pred_log = torch.log10(torch.clamp(pred_lin, min=1e-30))
+            log_mae = torch.mean((pred_log - y_log).abs())
 
             losses.append(loss.item())
             mses.append(mse.item())
             maes.append(mae.item())
+            log_maes.append(log_mae.item())
 
     return EvalResult(
         loss=float(np.mean(losses)),
         mse=float(np.mean(mses)),
         mae=float(np.mean(maes)),
+        log_mae=float(np.mean(log_maes)),
     )
 
 
@@ -533,7 +541,8 @@ def main() -> None:
         "train_loss": [],
         "val_loss": [],
         "val_mse": [],
-        "val_mae": []
+        "val_mae": [],
+        "val_log_mae": []
     }
 
     for epoch in range(1, EPOCHS + 1):
@@ -564,14 +573,16 @@ def main() -> None:
         loss_history["val_loss"].append(val_res.loss)
         loss_history["val_mse"].append(val_res.mse)
         loss_history["val_mae"].append(val_res.mae)
+        loss_history["val_log_mae"].append(val_res.log_mae)
         
         log.info(
-            "Epoch %03d | train=%.4f | val_loss=%.4f | val_MSE=%.4e | val_MAE=%.4e | time=%.1fs",
+            "Epoch %03d | train=%.4f | val_loss=%.4f | val_MSE=%.4e | val_MAE=%.4e | val_LogMAE=%.4f | time=%.1fs",
             epoch,
             train_loss,
             val_res.loss,
             val_res.mse,
             val_res.mae,
+            val_res.log_mae,
             time.time() - start,
         )
 
