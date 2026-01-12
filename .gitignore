@@ -15,11 +15,14 @@ models/archive/
 models/*.pt
 models/*.pth
 
-# Results and outputs
-plots/*.png
-plots/*.csv
+# Results and outputs - exclude large data but include key plots
+# Exclude PNG/CSV files by default
 *.png
 *.csv
+# But allow plots directory (key visualizations should be tracked)
+!plots/
+!plots/*.png
+!plots/*.csv
 
 # FastChem job outputs
 scripts/data_generation/fastchem_jobs_*/
