@@ -1,5 +1,0 @@
-rows_in_stripe 1999
-median_N_active_stripe 22.0
-mean_entropy_stripe    0.8192
-median_N_active_other  18.0
-mean_entropy_other     0.5551
