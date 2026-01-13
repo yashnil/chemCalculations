@@ -1,0 +1,41 @@
+======================================================================
+UPDATED_VERS AUTOENCODER DIAGNOSTIC SUMMARY
+======================================================================
+
+GLOBAL METRICS
+----------------------------------------------------------------------
+Linear MAE:        1.303164e+20
+Linear R²:         0.855519
+Log MAE (dex):     1.113144e-01
+Log R²:            0.997957
+Test samples:      9,600
+Species predicted: 21
+
+TOP-5 SPECIES BY ABUNDANCE
+----------------------------------------------------------------------
+N2             : mean=2.222e+21, MAE=6.383e+20, R²=0.8259
+O2             : mean=2.019e+21, MAE=3.829e+20, R²=0.9513
+C5             : mean=1.089e+21, MAE=5.664e+20, R²=0.5899
+H2             : mean=9.384e+20, MAE=1.775e+20, R²=0.9569
+S2             : mean=5.201e+20, MAE=6.263e+19, R²=0.9390
+
+TOP-5 SPECIES BY ERROR
+----------------------------------------------------------------------
+N2             : MAE=6.383e+20, mean_abun=2.222e+21
+C5             : MAE=5.664e+20, mean_abun=1.089e+21
+O2             : MAE=3.829e+20, mean_abun=2.019e+21
+H2             : MAE=1.775e+20, mean_abun=9.384e+20
+S7             : MAE=1.344e+20, mean_abun=3.493e+20
+
+======================================================================
+PLOTS GENERATED
+======================================================================
+• parity_top10.png - Parity plots for 10 most abundant species
+• parity_overall.png - All species pooled parity plot
+• MAE_per_species.png - Error breakdown
+• residual_vs_observed.png - Residual analysis
+• error_distribution.png - Error histograms
+• hist_obs_*.png - Individual species distributions (top-5)
+• per_species_errors.csv - Complete error table
+• worst100_samples.csv - Samples with highest errors
+======================================================================

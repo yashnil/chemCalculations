@@ -79,42 +79,53 @@ def plot_results(results: list[dict], output_path: Path):
     
     fig, axes = plt.subplots(2, 2, figsize=(14, 10))
     
-    # Plot 1: Test Loss vs Dataset Size
-    axes[0, 0].plot(df["total_samples"] / 1000, df["test_loss"], 
+    # Plot 1: Test Loss vs Dataset Size (log-log scale)
+    valid_loss = df["test_loss"].notna()
+    axes[0, 0].plot(df[valid_loss]["total_samples"], df[valid_loss]["test_loss"], 
                    marker="o", linewidth=2, markersize=8, color="steelblue")
-    axes[0, 0].set_xlabel("Dataset Size (×1000 samples)", fontsize=12)
+    axes[0, 0].set_xlabel("Dataset Size (samples)", fontsize=12)
     axes[0, 0].set_ylabel("Test Loss (Normalized)", fontsize=12)
     axes[0, 0].set_title("Test Loss vs Dataset Size (Optimal Hyperparameters)", fontsize=14, fontweight="bold")
-    axes[0, 0].grid(True, alpha=0.3)
+    axes[0, 0].set_xscale("log")
+    axes[0, 0].set_yscale("log")
+    axes[0, 0].grid(True, alpha=0.3, which="both")
     
-    # Plot 2: Log MAE vs Dataset Size
+    # Plot 2: Log MAE vs Dataset Size (log-log scale)
     if "log_mae" in df.columns and df["log_mae"].notna().any():
         valid = df["log_mae"].notna()
-        axes[0, 1].plot(df[valid]["total_samples"] / 1000, df[valid]["log_mae"], 
+        axes[0, 1].plot(df[valid]["total_samples"], df[valid]["log_mae"], 
                         marker="s", linewidth=2, markersize=8, color="coral")
-        axes[0, 1].set_xlabel("Dataset Size (×1000 samples)", fontsize=12)
+        axes[0, 1].set_xlabel("Dataset Size (samples)", fontsize=12)
         axes[0, 1].set_ylabel("Log MAE", fontsize=12)
         axes[0, 1].set_title("Log MAE vs Dataset Size", fontsize=14, fontweight="bold")
-        axes[0, 1].grid(True, alpha=0.3)
+        axes[0, 1].set_xscale("log")
+        axes[0, 1].set_yscale("log")
+        axes[0, 1].grid(True, alpha=0.3, which="both")
     
-    # Plot 3: Log R² vs Dataset Size
+    # Plot 3: Log R² vs Dataset Size (log scale on 1-R²)
     if "log_r2" in df.columns and df["log_r2"].notna().any():
         valid = df["log_r2"].notna()
-        axes[1, 0].plot(df[valid]["total_samples"] / 1000, df[valid]["log_r2"], 
+        # Plot (1 - R²) on log scale to see improvements
+        y_transformed = 1.0 - df[valid]["log_r2"]
+        axes[1, 0].plot(df[valid]["total_samples"], y_transformed, 
                        marker="^", linewidth=2, markersize=8, color="green")
-        axes[1, 0].set_xlabel("Dataset Size (×1000 samples)", fontsize=12)
-        axes[1, 0].set_ylabel("Log R²", fontsize=12)
+        axes[1, 0].set_xlabel("Dataset Size (samples)", fontsize=12)
+        axes[1, 0].set_ylabel("1 - Log R² (log scale)", fontsize=12)
         axes[1, 0].set_title("Log R² vs Dataset Size", fontsize=14, fontweight="bold")
-        axes[1, 0].grid(True, alpha=0.3)
-        axes[1, 0].set_ylim([0.95, 1.0])
+        axes[1, 0].set_xscale("log")
+        axes[1, 0].set_yscale("log")
+        axes[1, 0].grid(True, alpha=0.3, which="both")
     
-    # Plot 4: Validation Loss vs Dataset Size
-    axes[1, 1].plot(df["total_samples"] / 1000, df["val_loss"], 
+    # Plot 4: Validation Loss vs Dataset Size (log-log scale)
+    valid_val = df["val_loss"].notna()
+    axes[1, 1].plot(df[valid_val]["total_samples"], df[valid_val]["val_loss"], 
                    marker="d", linewidth=2, markersize=8, color="purple")
-    axes[1, 1].set_xlabel("Dataset Size (×1000 samples)", fontsize=12)
+    axes[1, 1].set_xlabel("Dataset Size (samples)", fontsize=12)
     axes[1, 1].set_ylabel("Validation Loss (Normalized)", fontsize=12)
     axes[1, 1].set_title("Validation Loss vs Dataset Size", fontsize=14, fontweight="bold")
-    axes[1, 1].grid(True, alpha=0.3)
+    axes[1, 1].set_xscale("log")
+    axes[1, 1].set_yscale("log")
+    axes[1, 1].grid(True, alpha=0.3, which="both")
     
     plt.tight_layout()
     plt.savefig(output_path, dpi=150, bbox_inches="tight")
@@ -134,8 +145,8 @@ def plot_results(results: list[dict], output_path: Path):
 
 
 def main():
-    datasets = ["x32", "x48", "x64", "x80", "x96", "x112", "x128", "x144", "x160", "x176"]
-    output_path = BASE_DIR / "dataset_size_study_optimal.png"
+    datasets = ["x32", "x48", "x64", "x80", "x96", "x112", "x128", "x144", "x160", "x176", "x192", "x208", "x224"]
+    output_path = BASE_DIR.parent / "plots" / "dataset_size_study_optimal.png"
     
     print("="*80)
     print("DATASET SIZE STUDY - PLOT GENERATION")

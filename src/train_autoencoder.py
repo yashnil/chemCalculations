@@ -47,7 +47,7 @@ from autoencoder_model import FlowMapAutoencoder
 
 CSV_PATH = os.environ.get(
     "CSV_PATH",
-    "/Users/yashnilmohanty/Desktop/chemCalculations/NEW_VERS/all_gas_v10_no_stripe_clean.csv",
+    str(Path(__file__).resolve().parent.parent / "data" / "datasets" / "all_gas_fastchem_x160.csv"),
 )
 OUT_DIR = Path("runs_autoencoder")
 

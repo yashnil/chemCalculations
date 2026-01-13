@@ -47,11 +47,17 @@ def load_loss_history(run_dir: Path) -> pd.DataFrame:
 
 
 def plot_loss_curves(run_tags: List[str], base_dir: Path, output_path: Path):
+    """Plot loss curves. base_dir should point to models/archive/"""
     """Plot training and validation loss curves for specified runs."""
     fig, axes = plt.subplots(1, 2, figsize=(14, 5))
     
     for idx, tag in enumerate(run_tags):
+        # Try multiple possible directory patterns
         run_dir = base_dir / f"runs_autoencoder_{tag}"
+        if not run_dir.exists():
+            run_dir = base_dir / f"runs_autoencoder_optimal_{tag}"
+        if not run_dir.exists():
+            run_dir = base_dir / f"runs_autoencoder_latent{tag}"
         if not run_dir.exists():
             print(f"Warning: {run_dir} not found, skipping...")
             continue
@@ -237,9 +243,9 @@ def main():
     parser.add_argument("--base-dir", type=Path, default=Path(__file__).parent,
                         help="Base directory containing run folders")
     parser.add_argument("--metrics-csv", type=Path, 
-                        default=Path(__file__).parent / "comparison_metrics.csv",
+                        default=Path(__file__).resolve().parent.parent / "plots" / "comparison_metrics.csv",
                         help="Path to comparison metrics CSV")
-    parser.add_argument("--output-dir", type=Path, default=Path(__file__).parent,
+    parser.add_argument("--output-dir", type=Path, default=Path(__file__).resolve().parent.parent / "plots",
                         help="Output directory for plots")
     args = parser.parse_args()
     

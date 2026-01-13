@@ -26,8 +26,8 @@ import numpy as np
 import pandas as pd
 
 BASE_DIR = Path(__file__).resolve().parent
-DEFAULT_LATENT_DIMS = [32, 64, 96, 128, 160, 192, 256]
-DEFAULT_EPOCHS = 100  # Fewer epochs for faster experimentation
+DEFAULT_LATENT_DIMS = [64, 96, 128, 160, 192, 256, 320, 384, 448, 512]
+DEFAULT_EPOCHS = 50  # Fewer epochs for faster experimentation
 
 
 def train_model(latent_dim: int, epochs: int = DEFAULT_EPOCHS) -> dict:
@@ -40,7 +40,7 @@ def train_model(latent_dim: int, epochs: int = DEFAULT_EPOCHS) -> dict:
     
     # Set up environment
     env = {
-        "CSV_PATH": str(BASE_DIR / "datasets" / "all_gas_fastchem_x160.csv"),
+        "CSV_PATH": str(BASE_DIR.parent / "data" / "datasets" / "all_gas_fastchem_x160.csv"),
     }
     
     # Modify train_autoencoder.py temporarily or use command-line override
@@ -60,10 +60,12 @@ def train_model(latent_dim: int, epochs: int = DEFAULT_EPOCHS) -> dict:
     train_script = BASE_DIR / "train_autoencoder.py"
     original_content = train_script.read_text()
     
-    # Modify LATENT_DIM
-    modified_content = original_content.replace(
-        f"LATENT_DIM = 128",
-        f"LATENT_DIM = {latent_dim}"
+    # Modify LATENT_DIM - try multiple patterns
+    import re
+    modified_content = re.sub(
+        r'LATENT_DIM = \d+',
+        f'LATENT_DIM = {latent_dim}',
+        original_content
     )
     
     # Also modify EPOCHS if needed
@@ -196,13 +198,13 @@ def main():
     parser.add_argument(
         "--output",
         type=Path,
-        default=BASE_DIR / "latent_dim_study.png",
+        default=BASE_DIR.parent / "plots" / "latent_dim_study.png",
         help="Output path for plot"
     )
     parser.add_argument(
         "--csv-output",
         type=Path,
-        default=BASE_DIR / "latent_dim_results.csv",
+        default=BASE_DIR.parent / "plots" / "latent_dim_results.csv",
         help="Output path for CSV results"
     )
     args = parser.parse_args()

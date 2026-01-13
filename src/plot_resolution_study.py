@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-Create a comparative diagnostics chart across dataset sizes.
+Create separate comparative diagnostics charts across dataset sizes.
+Now generates 4 separate figures instead of one 4-panel figure for easier quantification.
 
 Usage:
     python plot_resolution_study.py \
@@ -26,8 +27,8 @@ import pandas as pd
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Plot resolution study metrics vs dataset size.")
-    # Default to the CSV in the same directory as this script
-    default_csv = Path(__file__).parent / "comparison_metrics.csv"
+    # Default to the CSV in plots directory
+    default_csv = Path(__file__).parent.parent / "plots" / "comparison_metrics.csv"
     parser.add_argument(
         "--metrics-csv",
         default=str(default_csv),
@@ -35,17 +36,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--output",
-        default="resolution_study.png",
-        help="Destination path for the generated figure.",
+        default=str(Path(__file__).parent.parent / "plots" / "resolution_study.png"),
+        help="Base path for generated figures (will create resolution_study_{metric}.png files).",
     )
     return parser
 
 
-def add_series(ax, x, y, label, color=None):
-    return ax.plot(x, y, marker="o", label=label, color=color)
-
-
 def annotate_points(ax, x, y, tags):
+    """Annotate points with dataset tags."""
     for xi, yi, tag in zip(x, y, tags):
         ax.annotate(tag, (xi, yi), textcoords="offset points", xytext=(5, -10), fontsize=8)
 
@@ -65,42 +63,67 @@ def main(args: argparse.Namespace) -> None:
     samples = df["total_samples"]
     tags = df["dataset"]
 
-    fig, axes = plt.subplots(2, 2, figsize=(9, 6), dpi=150, sharex=True)
-    axes = axes.ravel()
-
+    # Create 4 separate figures instead of one 4-panel figure
     metrics = [
-        ("val_loss", "Validation Loss"),
-        ("test_loss", "Test Loss"),
-        ("log_mae", "Log-space MAE"),
-        ("log_r2", "Log-space R²"),
+        ("val_loss", "Validation Loss", "validation_loss"),
+        ("test_loss", "Test Loss", "test_loss"),
+        ("log_mae", "Log-space MAE", "log_mae"),
+        ("log_r2", "Log-space R²", "log_r2"),
     ]
 
-    for ax, (column, title) in zip(axes, metrics):
+    base_output_path = Path(args.output).expanduser().resolve()
+    output_dir = base_output_path.parent
+
+    for column, title, filename_suffix in metrics:
         if column not in df.columns:
-            ax.set_visible(False)
+            print(f"⚠️  Column '{column}' not found in CSV, skipping...")
             continue
-        y = df[column]
-        add_series(ax, samples, y, title)
-        annotate_points(ax, samples, y, tags)
-        ax.set_title(title)
+        
+        fig, ax = plt.subplots(1, 1, figsize=(10, 7), dpi=150)
+        
+        # Filter out NaN values - use original index
+        valid_mask = df[column].notna()
+        samples_valid = samples[valid_mask].values
+        y_valid = df[column][valid_mask].values
+        tags_valid = tags[valid_mask].values
+        
         ax.set_xscale("log")
-        ax.grid(True, which="both", linestyle="--", alpha=0.3)
-        ax.legend(loc="best")
-
-    axes[2].set_xlabel("Total samples (post-filter)")
-    axes[3].set_xlabel("Total samples (post-filter)")
-
-    fig.tight_layout()
-    out_path = Path(args.output).expanduser().resolve()
-    fig.savefig(out_path, bbox_inches="tight")
-    print(f"[plot] saved resolution study chart → {out_path}")
-
-    fig.tight_layout()
-    out_path = Path(args.output).expanduser().resolve()
-    fig.savefig(out_path, bbox_inches="tight")
-    print(f"[plot] saved resolution study chart → {out_path}")
+        
+        # Use log-log scale for loss and R² to see improvements better
+        if column in ["val_loss", "test_loss", "log_mae"]:
+            ax.set_yscale("log")
+            ax.plot(samples_valid, y_valid, marker="o", linewidth=2.5, markersize=10, 
+                   label=title, color="steelblue", zorder=3)
+            annotate_points(ax, samples_valid, y_valid, tags_valid)
+        elif column == "log_r2":
+            # For R², use log scale on (1 - R²) to see improvements
+            # R² goes from 0.98 to 0.999, so plot (1 - R²) on log scale
+            y_transformed = 1.0 - y_valid
+            ax.plot(samples_valid, y_transformed, marker="o", linewidth=2.5, markersize=10,
+                   label=title, color="green", zorder=3)
+            annotate_points(ax, samples_valid, y_transformed, tags_valid)
+            ax.set_yscale("log")
+            ax.set_ylabel("1 - Log R² (log scale)", fontsize=14)
+        else:
+            ax.plot(samples_valid, y_valid, marker="o", linewidth=2.5, markersize=10, label=title)
+            annotate_points(ax, samples_valid, y_valid, tags_valid)
+        
+        ax.set_title(title, fontsize=16, fontweight="bold", pad=15)
+        ax.set_xlabel("Total samples (post-filter)", fontsize=13)
+        if column != "log_r2":
+            ax.set_ylabel(title, fontsize=13)
+        ax.grid(True, which="both", linestyle="--", alpha=0.3, zorder=1)
+        ax.legend(loc="best", fontsize=11, framealpha=0.9)
+        
+        # Save individual figure
+        out_path = output_dir / f"resolution_study_{filename_suffix}.png"
+        fig.tight_layout()
+        fig.savefig(out_path, bbox_inches="tight", dpi=150)
+        print(f"[plot] saved {title} → {out_path}")
+        plt.close(fig)
+    
+    print(f"\n✅ Generated 4 separate resolution study figures in {output_dir}")
 
 
 if __name__ == "__main__":
     main(build_parser().parse_args())
-
