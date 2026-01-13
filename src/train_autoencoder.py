@@ -265,6 +265,45 @@ class WeightedHuber(nn.Module):
         return huber.mean()
 
 
+class LogRatioLoss(nn.Module):
+    """
+    Fractional/log-ratio loss: L_log-ratio = |log_10(ŷ/y)|
+    
+    This loss operates in NORMALIZED space (not linear space) to avoid numerical instability.
+    Since y_scaled = log10(y) / TARGET_LOG_SCALE, we have:
+        |log10(ŷ/y)| = |log10(ŷ) - log10(y)| = TARGET_LOG_SCALE * |ŷ_scaled - y_scaled|
+    
+    This avoids the need to convert to linear space, which causes overflow/underflow.
+    
+    Args:
+        weights: Optional per-species weights (same shape as predictions)
+        target_log_scale: Scaling factor used in normalization (default: 30.0)
+    """
+    def __init__(self, weights: Optional[torch.Tensor] = None, target_log_scale: float = 30.0):
+        super().__init__()
+        self.register_buffer("w", weights if weights is not None else None)
+        self.target_log_scale = target_log_scale
+
+    def forward(self, pred_scaled: torch.Tensor, true_scaled: torch.Tensor) -> torch.Tensor:
+        """
+        Args:
+            pred_scaled: Predictions in normalized space (log10(y) / TARGET_LOG_SCALE)
+            true_scaled: True values in normalized space (log10(y) / TARGET_LOG_SCALE)
+        
+        Returns:
+            Mean absolute log-ratio loss: TARGET_LOG_SCALE * |pred_scaled - true_scaled|
+        """
+        # Compute log-ratio directly in normalized space
+        # |log10(ŷ/y)| = |log10(ŷ) - log10(y)| = TARGET_LOG_SCALE * |ŷ_scaled - y_scaled|
+        log_ratio = self.target_log_scale * torch.abs(pred_scaled - true_scaled)
+        
+        # Apply weights if provided
+        if self.w is not None:
+            log_ratio = log_ratio * self.w.view(1, -1)
+        
+        return log_ratio.mean()
+
+
 def compute_target_weights(y_linear: np.ndarray, present_floor: float = 1e-8) -> np.ndarray:
     freq = (y_linear > present_floor).mean(axis=0)
     w = 1.0 / np.sqrt(np.clip(freq, 1e-6, None))
@@ -289,7 +328,15 @@ def evaluate(model: FlowMapAutoencoder, loader: DataLoader, device: torch.device
     losses, mses, maes, log_maes = [], [], [], []
 
     with torch.no_grad():
-        for g, y in loader:
+        for batch_data in loader:
+            # Handle both 2-tuple (g, y) and 3-tuple (g, y, y_linear) cases
+            if len(batch_data) == 3:
+                g, y, y_linear_batch = batch_data
+                y_linear_batch = y_linear_batch.to(device) if y_linear_batch is not None else None
+            else:
+                g, y = batch_data
+                y_linear_batch = None
+            
             g = g.to(device)
             y = y.to(device)
 
@@ -298,8 +345,14 @@ def evaluate(model: FlowMapAutoencoder, loader: DataLoader, device: torch.device
             pred = model(y0, dt, g)[:, 0, :]
 
             loss = criterion(pred, y)
-            y_lin = scale_targets_train_to_linear_tensor(y)
+            
+            # Convert to linear space for metrics
+            if y_linear_batch is not None:
+                y_lin = y_linear_batch
+            else:
+                y_lin = scale_targets_train_to_linear_tensor(y)
             pred_lin = scale_targets_train_to_linear_tensor(pred)
+            
             mse = criterion(pred_lin, y_lin)
             mae = torch.mean((pred_lin - y_lin).abs())
             
@@ -443,13 +496,105 @@ if __name__ == "__main__":
     module_path.write_text(code)
 
 
+def load_config(config_path: Optional[str] = None) -> dict:
+    """Load configuration from JSON file or use defaults."""
+    if config_path and Path(config_path).exists():
+        with open(config_path, 'r') as f:
+            config = json.load(f)
+        log.info("Loaded config from: %s", config_path)
+        return config
+    
+    # Return default config structure (will use module-level constants)
+    return {}
+
+
+def apply_config(config: dict) -> None:
+    """Apply config dictionary to module-level constants."""
+    global CSV_PATH, OUT_DIR, SEED, TRAIN_FRAC, VAL_FRAC, TEST_FRAC
+    global EPOCHS, BATCH_SIZE, LR, WEIGHT_DECAY, GRAD_CLIP
+    global LATENT_DIM, ENCODER_HIDDEN, DYNAMICS_HIDDEN, DECODER_HIDDEN, ACTIVATION, DROPOUT
+    global TARGET_TOPK_SPECIES, TEMP_DIVISOR, INPUT_LOG_SCALE, ABUND_EPSILON_OFFSET
+    global ABUND_DEX_SCALE, TARGET_ZERO_FLOOR, TARGET_LOG_SCALE, LOG_EPS, INCLUDE_FZ_AS_FEATURE
+    
+    if not config:
+        return
+    
+    if "data" in config:
+        d = config["data"]
+        if "csv_path" in d:
+            CSV_PATH = os.environ.get("CSV_PATH", str(Path(__file__).resolve().parent.parent / d["csv_path"]))
+        if "train_frac" in d:
+            TRAIN_FRAC = d["train_frac"]
+        if "val_frac" in d:
+            VAL_FRAC = d["val_frac"]
+        if "test_frac" in d:
+            TEST_FRAC = d["test_frac"]
+        if "target_topk_species" in d:
+            TARGET_TOPK_SPECIES = d["target_topk_species"]
+        if "include_fz_as_feature" in d:
+            INCLUDE_FZ_AS_FEATURE = d["include_fz_as_feature"]
+    
+    if "optimization" in config:
+        o = config["optimization"]
+        if "epochs" in o:
+            EPOCHS = o["epochs"]
+        if "batch_size" in o:
+            BATCH_SIZE = o["batch_size"]
+        if "learning_rate" in o:
+            LR = o["learning_rate"]
+        if "weight_decay" in o:
+            WEIGHT_DECAY = o["weight_decay"]
+        if "grad_clip" in o:
+            GRAD_CLIP = o["grad_clip"]
+        if "seed" in o:
+            SEED = o["seed"]
+    
+    if "architecture" in config:
+        a = config["architecture"]
+        if "latent_dim" in a:
+            LATENT_DIM = a["latent_dim"]
+        if "encoder_hidden" in a:
+            ENCODER_HIDDEN = a["encoder_hidden"]
+        if "dynamics_hidden" in a:
+            DYNAMICS_HIDDEN = a["dynamics_hidden"]
+        if "decoder_hidden" in a:
+            DECODER_HIDDEN = a["decoder_hidden"]
+        if "activation" in a:
+            ACTIVATION = a["activation"]
+        if "dropout" in a:
+            DROPOUT = a["dropout"]
+    
+    if "normalization" in config:
+        n = config["normalization"]
+        if "temp_divisor" in n:
+            TEMP_DIVISOR = n["temp_divisor"]
+        if "input_log_scale" in n:
+            INPUT_LOG_SCALE = n["input_log_scale"]
+        if "abund_epsilon_offset" in n:
+            ABUND_EPSILON_OFFSET = n["abund_epsilon_offset"]
+        if "abund_dex_scale" in n:
+            ABUND_DEX_SCALE = n["abund_dex_scale"]
+        if "target_zero_floor" in n:
+            TARGET_ZERO_FLOOR = n["target_zero_floor"]
+        if "target_log_scale" in n:
+            TARGET_LOG_SCALE = n["target_log_scale"]
+        if "log_eps" in n:
+            LOG_EPS = n["log_eps"]
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Train FlowMapAutoencoder with configurable loss function")
-    parser.add_argument("--loss-type", type=str, default="huber", choices=["huber", "mse"],
-                        help="Loss function: 'huber' (weighted) or 'mse' (plain MSE in normalized space)")
+    parser.add_argument("--config", type=str, default=None,
+                        help="Path to config JSON file (default: use module-level constants)")
+    parser.add_argument("--loss-type", type=str, default="huber", choices=["huber", "mse", "log_ratio"],
+                        help="Loss function: 'huber' (weighted, normalized), 'mse' (normalized), or 'log_ratio' (linear space)")
     parser.add_argument("--run-dir", type=str, default=None,
                         help="Output directory (default: runs_autoencoder_{dataset_tag})")
     args = parser.parse_args()
+    
+    # Load and apply config
+    config = load_config(args.config)
+    apply_config(config)
     
     # Update OUT_DIR if specified
     global OUT_DIR
@@ -484,6 +629,7 @@ def main() -> None:
         X_tmp, y_tmp, idx_tmp, train_size=val_ratio, random_state=SEED + 1, shuffle=True
     )
 
+    # Log-ratio loss now works in normalized space, so no need for linear targets
     train_ds = AutoencoderDataset(X_train, y_train)
     val_ds = AutoencoderDataset(X_val, y_val)
     test_ds = AutoencoderDataset(X_test, y_test)
@@ -519,12 +665,19 @@ def main() -> None:
     )
 
     # Select loss function based on argument
+    use_linear_space_loss = False
     if args.loss_type == "mse":
         criterion = nn.MSELoss()
+        use_linear_space_loss = False
         log.info("Using MSE loss (plain) in normalized space")
-    else:
+    elif args.loss_type == "log_ratio":
+        criterion = LogRatioLoss(weights=torch.as_tensor(weights, dtype=torch.float32, device=device), target_log_scale=TARGET_LOG_SCALE)
+        use_linear_space_loss = False  # Works in normalized space!
+        log.info("Using Log-Ratio loss (normalized space: TARGET_LOG_SCALE * |ŷ_scaled - y_scaled|)")
+    else:  # huber
         criterion = WeightedHuber(delta=0.02, weights=torch.as_tensor(weights, dtype=torch.float32, device=device))
-        log.info("Using Weighted Huber loss (delta=0.02)")
+        use_linear_space_loss = False
+        log.info("Using Weighted Huber loss (delta=0.02, normalized space)")
     
     optimizer = torch.optim.Adam(model.parameters(), lr=LR, weight_decay=WEIGHT_DECAY)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
@@ -555,8 +708,16 @@ def main() -> None:
             optimizer.zero_grad()
             y0 = torch.zeros_like(y)
             dt = torch.ones((g.shape[0], 1), device=device, dtype=g.dtype)
-            pred = model(y0, dt, g)[:, 0, :]
-            loss = criterion(pred, y)
+            pred_scaled = model(y0, dt, g)[:, 0, :]
+            
+            # Log-ratio loss now works directly in normalized space (no conversion needed!)
+            loss = criterion(pred_scaled, y)
+            
+            # Check for NaN loss
+            if torch.isnan(loss) or torch.isinf(loss):
+                log.warning("NaN/Inf loss detected, skipping batch")
+                continue
+            
             loss.backward()
             if GRAD_CLIP:
                 torch.nn.utils.clip_grad_norm_(model.parameters(), GRAD_CLIP)

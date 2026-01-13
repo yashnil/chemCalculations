@@ -80,12 +80,33 @@ def main(args: argparse.Namespace) -> None:
 
     result_files = discover_result_files(jobs_root)
     shards = []
+    skipped_count = 0
     for file in result_files:
-        df = pd.read_csv(file)
-        if "index" in df.columns:
-            df = df.drop(columns=["index"])
-        shards.append(df)
+        # Skip empty files
+        if file.stat().st_size == 0:
+            print(f"[merge] skipping empty file: {file}")
+            skipped_count += 1
+            continue
+        try:
+            df = pd.read_csv(file)
+            if df.empty:
+                print(f"[merge] skipping empty dataframe: {file}")
+                skipped_count += 1
+                continue
+            if "index" in df.columns:
+                df = df.drop(columns=["index"])
+            shards.append(df)
+        except (pd.errors.EmptyDataError, pd.errors.ParserError) as e:
+            print(f"[merge] skipping file with parse error ({type(e).__name__}): {file}")
+            skipped_count += 1
+            continue
+    
+    if not shards:
+        raise RuntimeError(f"No valid result files found. Skipped {skipped_count} files, found {len(result_files)} total files.")
+    
     gas_df = pd.concat(shards, axis=0, ignore_index=True)
+    if skipped_count > 0:
+        print(f"[merge] Warning: Skipped {skipped_count} files out of {len(result_files)} total")
     print(f"[merge] Loaded {len(gas_df)} prediction rows from {len(result_files)} shard(s)")
 
     # Align species columns to match reference. Fill missing species with zeros.
