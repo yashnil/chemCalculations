@@ -73,6 +73,8 @@ ACTIVATION = "silu"
 DROPOUT = 0.0
 
 TARGET_TOPK_SPECIES = 20
+USE_STATIC_SPECIES_LIST = False
+STATIC_SPECIES_LIST_PATH: Optional[str] = None  # Path to JSON file with static species list
 
 # normalisation constants (aligned with previous baseline)
 TEMP_DIVISOR = 4_000.0
@@ -212,17 +214,59 @@ def topk_species_linear_mean(df: pd.DataFrame, candidates: Sequence[str], k: int
 
 
 def resolve_target_columns(df: pd.DataFrame, input_cols: Sequence[str]) -> List[str]:
+    """Resolve target columns using static ordering if available, otherwise dynamic selection."""
+    # Priority 1: Manual override
     if TARGET_COLS_MANUAL:
         missing = [c for c in TARGET_COLS_MANUAL if c not in df.columns]
         if missing:
             raise ValueError(f"Manual target columns missing: {missing}")
         return list(TARGET_COLS_MANUAL)
-
+    
+    # Priority 2: Static species list (if enabled)
+    if USE_STATIC_SPECIES_LIST and STATIC_SPECIES_LIST_PATH:
+        static_path = Path(STATIC_SPECIES_LIST_PATH)
+        if not static_path.is_absolute():
+            # Relative to configs/ directory
+            project_root = Path(__file__).resolve().parent.parent
+            # If just a filename, assume it's in configs/
+            if static_path.parent == Path("."):
+                static_path = project_root / "configs" / static_path.name
+            else:
+                static_path = project_root / static_path
+        
+        if static_path.exists():
+            try:
+                with open(static_path, 'r') as f:
+                    static_data = json.load(f)
+                    static_species = static_data.get('species', [])
+                
+                # Filter to only species that exist in dataset
+                available_species = [s for s in static_species if s in df.columns]
+                missing_species = set(static_species) - set(available_species)
+                
+                if len(available_species) == len(static_species):
+                    log.info(f"Using static species list ({len(available_species)} species) from {static_path.name}")
+                    preview = available_species[:10] + (["..."] if len(available_species) > 10 else [])
+                    log.info(f"Target columns: {preview}")
+                    return available_species
+                elif len(available_species) > 0:
+                    log.warning(f"Static list has {len(missing_species)} missing species: {missing_species}")
+                    log.warning(f"Using {len(available_species)} available species from static list")
+                    return available_species
+                else:
+                    log.warning(f"None of the static species are available in dataset. Falling back to dynamic selection.")
+            except Exception as e:
+                log.warning(f"Failed to load static species list from {static_path}: {e}")
+                log.warning("Falling back to dynamic selection")
+        else:
+            log.warning(f"Static species list not found at {static_path}. Falling back to dynamic selection.")
+    
+    # Priority 3: Dynamic selection (fallback)
     candidates = species_candidates(df, input_cols)
     top = topk_species_linear_mean(df, candidates, TARGET_TOPK_SPECIES)
     if "e-" in df.columns and "e-" in candidates and "e-" not in top:
         top.insert(0, "e-")
-    log.info("Target columns (%d): %s", len(top), top[:10] + (["..."] if len(top) > 10 else []))
+    log.info("Target columns (%d) [dynamic]: %s", len(top), top[:10] + (["..."] if len(top) > 10 else []))
     return top
 
 
@@ -515,6 +559,7 @@ def apply_config(config: dict) -> None:
     global LATENT_DIM, ENCODER_HIDDEN, DYNAMICS_HIDDEN, DECODER_HIDDEN, ACTIVATION, DROPOUT
     global TARGET_TOPK_SPECIES, TEMP_DIVISOR, INPUT_LOG_SCALE, ABUND_EPSILON_OFFSET
     global ABUND_DEX_SCALE, TARGET_ZERO_FLOOR, TARGET_LOG_SCALE, LOG_EPS, INCLUDE_FZ_AS_FEATURE
+    global USE_STATIC_SPECIES_LIST, STATIC_SPECIES_LIST_PATH
     
     if not config:
         return
@@ -533,6 +578,10 @@ def apply_config(config: dict) -> None:
             TARGET_TOPK_SPECIES = d["target_topk_species"]
         if "include_fz_as_feature" in d:
             INCLUDE_FZ_AS_FEATURE = d["include_fz_as_feature"]
+        if "use_static_species_list" in d:
+            USE_STATIC_SPECIES_LIST = d["use_static_species_list"]
+        if "static_species_list_path" in d:
+            STATIC_SPECIES_LIST_PATH = d["static_species_list_path"]
     
     if "optimization" in config:
         o = config["optimization"]

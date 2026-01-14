@@ -75,10 +75,11 @@ We replace the iterative FastChem solver with a **trained neural network** that:
 ### Key Design Principles
 
 1. **Rich input representation**: 7 core features (T, P, 5 elements) expandable to 30+ with metals
-2. **Focused outputs**: Top-20 species by abundance, not all 116+ species
+2. **Static species ordering**: Fixed 33-species list (32 + e-) ordered by mean abundance (99.68% coverage)
 3. **Simple normalization**: Physical constants (T/4000, (abund_dex-12)/10)
-4. **Data quality**: Filter low-temperature samples that cause prediction artifacts
-5. **Robust validation**: Comprehensive diagnostics suite with parity plots
+4. **Log-ratio loss**: Direct log-space error minimization for numerical stability
+5. **Data quality**: Filter low-temperature samples that cause prediction artifacts
+6. **Robust validation**: Comprehensive diagnostics suite with parity plots
 
 **Philosophy**: Give the model good data, keep transformations simple, focus on what matters.
 
@@ -89,27 +90,30 @@ We replace the iterative FastChem solver with a **trained neural network** that:
 ### Best Model Performance
 
 **🏆 Best Overall Performance:**
-- **Model**: x160_new (FlowMapAutoencoder with optimal hyperparameters)
-- **Test Loss**: 2.06×10⁻⁴ (normalized space)
-- **Log MAE**: 0.0564 (orders of magnitude error)
-- **Log R²**: 0.9991 (99.91% variance explained)
+- **Model**: x160_static_32 (FlowMapAutoencoder with static species ordering)
+- **Test Loss**: 1.50×10⁻⁴ (normalized space)
+- **Log MAE**: 0.0224 (orders of magnitude error)
+- **Log R²**: 0.9994 (99.94% variance explained)
 - **Dataset Size**: 160,000 samples
-- **Architecture**: latent_dim=128, width=512, layers=3, SiLU activation
+- **Architecture**: latent_dim=192, width=512, layers=3, SiLU activation
+- **Species**: 33 species (32 + e-) with static ordering (99.68% coverage)
 
 **Training Configuration**:
 - Dataset: 160K samples (750–3000 K, T > 750K filter)
 - Split: 85% train (136K) / 10% val (16K) / 5% test (8K)
-- Architecture: FlowMapAutoencoder, 128-dim latent, 512-width layers (3 layers each)
+- Architecture: FlowMapAutoencoder, 192-dim latent, 512-width layers (3 layers each)
 - Activation: SiLU (Sigmoid Linear Unit)
-- Loss: Weighted Huber (δ=0.02)
-- Scheduler: ReduceLROnPlateau
-- Training time: ~24 minutes (200 epochs)
+- Loss: Log-ratio loss (L = |log₁₀(ŷ/y)|, computed in normalized space)
+- Scheduler: ReduceLROnPlateau (factor=0.5, patience=10, min_lr=1e-6)
+- Training time: ~30 minutes (200 epochs)
 - Dropout: 0.0 (no overfitting observed)
+- **Static Species Ordering**: Fixed species list ordered by mean abundance
 
 **Key Improvements Over Previous Architecture**:
-- **51% reduction in Log MAE** (0.1156 → 0.0564)
-- **51% reduction in test loss** (0.000389 → 0.000206)
-- **Log R² improvement** (0.9982 → 0.9991)
+- **60% reduction in Log MAE** (0.0564 → 0.0224) vs x160_new
+- **27% reduction in test loss** (0.000206 → 0.000150) vs x160_new
+- **11.7% improvement** over dynamic top-20 baseline (x160_logratio)
+- **Static ordering**: Consistent architecture across runs, better reproducibility
 
 ### Hyperparameter Optimization Studies
 
@@ -118,12 +122,12 @@ We conducted three systematic hyperparameter studies to identify optimal model c
 #### Test #1: Latent Dimension Study
 **Objective**: Find optimal latent space dimensionality
 
-**Tested values**: 64, 96, 128, 160, 192  
+**Tested values**: 64, 96, 128, 160, 192, 256, 320, 384, 448, 512  
 **Results**: 
 - **Best**: latent_dim=192 (test_loss=0.000339) at 50 epochs
 - Performance degrades for both smaller and larger dimensions
-- Clear minimum at 192, optimal for 21-species output space
-- **Note**: With full 200-epoch training, latent_dim=128 (x160_new) achieves better performance
+- Clear minimum at 192, optimal for 33-species output space (static ordering)
+- Confirmed optimal for full 200-epoch training with static ordering
 
 **Plot**: `plots/latent_dim_study.png`
 
@@ -146,23 +150,42 @@ We conducted three systematic hyperparameter studies to identify optimal model c
 #### Test #3: Dataset Size Study with Optimal Hyperparameters
 **Objective**: Evaluate optimal hyperparameters across different dataset sizes
 
-**Configuration**: latent_dim=192, width=512, layers=3  
-**Tested sizes**: x32, x48, x64, x80, x96, x112, x128, x144, x160, x176
+**Configuration**: latent_dim=192, width=512, layers=3, static ordering  
+**Tested sizes**: x32, x48, x64, x80, x96, x112, x128, x144, x160, x176, x192, x208, x224
 
 **Key Findings**:
 - Optimal hyperparameters work best at x160 (the size they were optimized on)
-- x160_optimal: test_loss=0.000339, log_mae=0.109 (12.8% improvement over previous architecture)
+- x160_optimal: test_loss=0.000339, log_mae=0.109
+- x160_static_32: test_loss=0.000150, log_mae=0.0224 (best overall)
 - Smaller datasets perform worse with these hyperparameters
 - Confirms x160 as optimal dataset size
+- Static ordering provides consistent improvement across all sizes
 
 **Plot**: `plots/dataset_size_study_optimal.png`  
 **Full results**: See `plots/comparison_metrics.csv`
+
+#### Test #4: Static Species Ordering Study
+**Objective**: Compare static vs dynamic species selection
+
+**Tested configurations**:
+- Dynamic top-20 (baseline): 21 species selected per dataset
+- Static 24 species: 25 species (24 + e-), 98.77% coverage
+- Static 32 species: 33 species (32 + e-), 99.68% coverage ← **Best**
+- Static 36 species: 37 species (36 + e-), 99.86% coverage
+
+**Results**:
+- **Static 32**: Best performance (test_loss=0.000150, log_mae=0.0224)
+- **11.7% improvement** in Log MAE over dynamic baseline
+- Static ordering provides better consistency and reproducibility
+- 32 species optimal balance between coverage and model complexity
+
+**Full results**: See `plots/comparison_metrics.csv` and `STATIC_ORDERING_IMPLEMENTATION.md`
 
 ### Comparison: FastChem vs ML Emulator
 
 | Aspect | FastChem | ML Emulator | Advantage |
 |--------|----------|-------------|-----------|
-| **Accuracy** | Exact (ground truth) | Log R² = 0.9991, Test Loss = 2.06×10⁻⁴ | Excellent match (99.91% variance) |
+| **Accuracy** | Exact (ground truth) | Log R² = 0.9994, Test Loss = 1.50×10⁻⁴ | Excellent match (99.94% variance) |
 | **Speed** | 7 ms/eval | 0.009 ms/eval | **~800× faster** |
 | **Scalability** | Linear | Parallel batching | GPU-accelerable |
 | **Deployment** | C++ binary | Python/PyTorch | Easy integration |
@@ -301,32 +324,36 @@ python test_dataset_sizes_optimal.py
 **Architecture**:
 ```
 Encoder:
-  Input: [state(21) + global(7)] = 28
+  Input: [state(33) + global(7)] = 40
   → Dense(512) → SiLU
   → Dense(512) → SiLU  
   → Dense(512) → SiLU
-  → Output: latent(128)
+  → Output: latent(192)
 
 Dynamics:
-  Input: [latent(128) + dt(1) + global(7)] = 136
+  Input: [latent(192) + dt(1) + global(7)] = 200
   → Dense(512) → SiLU
   → Dense(512) → SiLU
   → Dense(512) → SiLU
-  → Output: latent_delta(128)
+  → Output: latent_delta(192)
   → Residual: latent + latent_delta
 
 Decoder:
-  Input: latent(128)
+  Input: latent(192)
   → Dense(512) → SiLU
   → Dense(512) → SiLU
   → Dense(512) → SiLU
-  → Output: state(21)
+  → Output: state(33)
 ```
 
-**Parameters**: ~1.87M  
+**Parameters**: ~2.01M  
 **Key features**:
-- **Latent dimension**: 128 (optimal for full training)
+- **Latent dimension**: 192 (optimal for 33-species output)
 - **Constant layer widths**: All layers use 512 units (no bottlenecks)
+- **Static species ordering**: Fixed 33-species list (32 + e-) ordered by mean abundance
+  - Ensures consistent architecture across runs
+  - 99.68% mass coverage
+  - Reproducible model outputs
 - **SiLU activation**: Smooth, self-gated activation function
 - **No dropout**: Model doesn't overfit with sufficient data
 - **Residual connections**: In dynamics module for better gradient flow
@@ -348,23 +375,28 @@ Decoder:
 **Dex scale**: `abund_X_dex = 12 + log₁₀(N_X / N_H)` (standard astrophysical notation)
 - Solar values: H=12.0, O≈8.69, C≈8.43, N≈7.83, S≈7.12
 
-### Output Species (21 total)
+### Output Species (33 total)
 
-Top-20 most abundant species + electron (e⁻), auto-selected from training data.
+**Static species list**: Fixed 33-species list (32 + e⁻) ordered by mean abundance.
 
-**Typical species**: H₂, H₂O, CO, CH₄, NH₃, CO₂, N₂, O₂, He, H, O, C, N, S, OH, etc.
+**Species list** (ordered by abundance): e⁻, N₂, O₂, C₅, H₂, S₂, C₁S₂, S₇, H₂S₁, S₈, C₄N₂, C₁O₁, O₂S₁, C₃H₁, C₂H₂, H₂O₁, S₃, S₄, C₁O₂, C₁H₄, S₆, O₃S₁, H₃N₁, O₁S₂, C₂H₄, S₅, C₁S₁, C₁O₁S₁, C₁H₁N₁_1, H₂O₄S₁, C₃O₂, N₁O₁, C₂N₂
+
+**Coverage**: 99.68% of total mass abundance  
+**Ordering**: Determined once from comprehensive dataset analysis, fixed for all training runs  
+**Benefits**: Consistent architecture, reproducible outputs, better performance than dynamic selection
 
 ### Training Configuration
 
 ```python
 Optimizer:      Adam (lr=5×10⁻⁴, weight_decay=1×10⁻⁵)
 Scheduler:      ReduceLROnPlateau (factor=0.5, patience=10, min_lr=1×10⁻⁶)
-Loss:           Weighted Huber (δ=0.02) in normalized log-space
+Loss:           Log-ratio loss (L = |log₁₀(ŷ/y)|, computed in normalized space)
 Batch size:     512
 Epochs:         200
 Gradient clip:  5.0
 Data split:     85% train / 10% val / 5% test
 Dataset size:   160K samples (optimal, determined via resolution study)
+Species:        Static ordering (33 species from configs/static_species_list_32.json)
 ```
 
 ---

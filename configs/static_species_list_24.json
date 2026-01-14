@@ -1,0 +1,32 @@
+{
+  "species": [
+    "e-",
+    "N2",
+    "O2",
+    "C5",
+    "H2",
+    "S2",
+    "C1S2",
+    "S7",
+    "H2S1",
+    "S8",
+    "C4N2",
+    "C1O1",
+    "O2S1",
+    "C3H1",
+    "C2H2",
+    "H2O1",
+    "S3",
+    "S4",
+    "C1O2",
+    "C1H4",
+    "S6",
+    "O3S1",
+    "H3N1",
+    "O1S2",
+    "C2H4"
+  ],
+  "n_species": 25,
+  "coverage": 98.77004674578129,
+  "description": "Static species list ordered by mean abundance (top 24)"
+}
