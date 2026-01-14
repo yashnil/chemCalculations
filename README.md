@@ -186,7 +186,7 @@ We conducted three systematic hyperparameter studies to identify optimal model c
 | Aspect | FastChem | ML Emulator | Advantage |
 |--------|----------|-------------|-----------|
 | **Accuracy** | Exact (ground truth) | Log R² = 0.9994, Test Loss = 1.50×10⁻⁴ | Excellent match (99.94% variance) |
-| **Speed** | 7 ms/eval | 0.005 ms/eval (batch) | **~1362× faster** |
+| **Speed** | ~7 ms/eval* | 0.005 ms/eval (batch) | **~1362× faster** |
 | **Scalability** | Linear | Parallel batching | GPU-accelerable |
 | **Deployment** | C++ binary | Python/PyTorch | Easy integration |
 | **Use case** | Ground truth | Production inference | Complementary |
