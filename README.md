@@ -191,7 +191,7 @@ We conducted three systematic hyperparameter studies to identify optimal model c
 | **Deployment** | C++ binary | Python/PyTorch | Easy integration |
 | **Use case** | Ground truth | Production inference | Complementary |
 
-\* *FastChem speed (~7 ms/eval) is a typical estimate based on literature and typical usage. Actual speed can vary by hardware and system configuration. To verify FastChem speed on your system, run `scripts/benchmark_fastchem_speed.py` (requires FastChem environment variables: `FASTCHEM_LOGK`, `FASTCHEM_COND`, `FASTCHEM_ELEM`).*
+\* *FastChem speed measured at 5.1 ms/eval (mean) on test system using `scripts/benchmark_fastchem_speed.py`. Performance may vary by hardware.*
 
 **Bottom line**: ML emulator enables science that was previously impossible due to computational cost.
 
@@ -710,9 +710,9 @@ furnished to do so.
 
 **FastChem ML Emulator** solves the computational bottleneck in atmospheric modeling:
 
-- **Problem**: FastChem too slow (7 ms/call) for modern applications
-- **Solution**: Neural network emulator (0.009 ms/call)
-- **Result**: ~999× faster with excellent accuracy (Log R² = 0.9994, batch mode, measured FastChem: 5.1ms)
+- **Problem**: FastChem too slow (5.1 ms/call measured) for modern applications
+- **Solution**: Neural network emulator (0.005 ms/call batch mode)
+- **Result**: ~999× faster with excellent accuracy (Log R² = 0.9994, measured)
 - **Impact**: Enables retrievals, GCMs, and population studies that were previously infeasible
 
 **Current status**: Production-ready, validated, and recommended for all use cases.
