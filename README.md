@@ -191,6 +191,8 @@ We conducted three systematic hyperparameter studies to identify optimal model c
 | **Deployment** | C++ binary | Python/PyTorch | Easy integration |
 | **Use case** | Ground truth | Production inference | Complementary |
 
+\* *FastChem speed (~7 ms/eval) is a typical estimate based on literature and typical usage. Actual speed can vary by hardware and system configuration. To verify FastChem speed on your system, run `scripts/benchmark_fastchem_speed.py` (requires FastChem environment variables: `FASTCHEM_LOGK`, `FASTCHEM_COND`, `FASTCHEM_ELEM`).*
+
 **Bottom line**: ML emulator enables science that was previously impossible due to computational cost.
 
 ---
