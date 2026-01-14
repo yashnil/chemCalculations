@@ -116,19 +116,49 @@ def main():
     abund_O = 10**(test_df.get('abund_O_dex', 8.69).values - 12.0)
     abund_S = 10**(test_df.get('abund_S_dex', 7.12).values - 12.0)
     
+    # Get element symbols and base abundances
+    element_symbols = [fastchem.getElementSymbol(i) for i in range(fastchem.getElementNumber())]
+    base_vector = np.array(fastchem.getElementAbundances(), dtype=np.float64, copy=True)
+    
     # Warmup
     print(f"Warming up ({N_WARMUP} evaluations)...")
     for i in range(N_WARMUP):
         try:
-            fastchem.calcDensities(
-                temperatures[i:i+1],
-                pressures[i:i+1],
-                abund_H[i:i+1],
-                abund_C[i:i+1],
-                abund_N[i:i+1],
-                abund_O[i:i+1],
-                abund_S[i:i+1],
+            # Create new engine instance for each evaluation (matches run_fastchem_batch.py)
+            engine = pyfastchem.FastChem(
+                str(logk_path),
+                str(cond_path),
+                str(elem_path),
             )
+            
+            # Set element abundances
+            vec = base_vector.copy()
+            h_idx = element_symbols.index("H")
+            c_idx = element_symbols.index("C") if "C" in element_symbols else None
+            n_idx = element_symbols.index("N") if "N" in element_symbols else None
+            o_idx = element_symbols.index("O") if "O" in element_symbols else None
+            s_idx = element_symbols.index("S") if "S" in element_symbols else None
+            
+            vec[h_idx] = abund_H[i]
+            if c_idx is not None:
+                vec[c_idx] = abund_C[i]
+            if n_idx is not None:
+                vec[n_idx] = abund_N[i]
+            if o_idx is not None:
+                vec[o_idx] = abund_O[i]
+            if s_idx is not None:
+                vec[s_idx] = abund_S[i]
+            
+            engine.setElementAbundances(vec.tolist())
+            
+            # Run calculation
+            input_data = pyfastchem.FastChemInput()
+            output_data = pyfastchem.FastChemOutput()
+            input_data.temperature = np.array([temperatures[i]], dtype=np.float64)
+            input_data.pressure = np.array([pressures[i]], dtype=np.float64)
+            
+            engine.calcDensities(input_data, output_data)
+            del engine
         except Exception as e:
             print(f"⚠️  Warmup {i+1} failed: {e}")
     
@@ -142,18 +172,44 @@ def main():
     for i in range(N_TIMING_RUNS):
         t0 = time.perf_counter()
         try:
-            result = fastchem.calcDensities(
-                temperatures[i:i+1],
-                pressures[i:i+1],
-                abund_H[i:i+1],
-                abund_C[i:i+1],
-                abund_N[i:i+1],
-                abund_O[i:i+1],
-                abund_S[i:i+1],
+            # Create new engine instance (matches actual usage pattern)
+            engine = pyfastchem.FastChem(
+                str(logk_path),
+                str(cond_path),
+                str(elem_path),
             )
+            
+            # Set element abundances
+            vec = base_vector.copy()
+            h_idx = element_symbols.index("H")
+            c_idx = element_symbols.index("C") if "C" in element_symbols else None
+            n_idx = element_symbols.index("N") if "N" in element_symbols else None
+            o_idx = element_symbols.index("O") if "O" in element_symbols else None
+            s_idx = element_symbols.index("S") if "S" in element_symbols else None
+            
+            vec[h_idx] = abund_H[i]
+            if c_idx is not None:
+                vec[c_idx] = abund_C[i]
+            if n_idx is not None:
+                vec[n_idx] = abund_N[i]
+            if o_idx is not None:
+                vec[o_idx] = abund_O[i]
+            if s_idx is not None:
+                vec[s_idx] = abund_S[i]
+            
+            engine.setElementAbundances(vec.tolist())
+            
+            # Run calculation
+            input_data = pyfastchem.FastChemInput()
+            output_data = pyfastchem.FastChemOutput()
+            input_data.temperature = np.array([temperatures[i]], dtype=np.float64)
+            input_data.pressure = np.array([pressures[i]], dtype=np.float64)
+            
+            engine.calcDensities(input_data, output_data)
             t1 = time.perf_counter()
             elapsed_ms = (t1 - t0) * 1000.0
             times.append(elapsed_ms)
+            del engine
         except Exception as e:
             print(f"⚠️  Evaluation {i+1} failed: {e}")
     
