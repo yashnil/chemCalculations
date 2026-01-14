@@ -5,10 +5,10 @@ A high-performance machine learning surrogate model for chemical equilibrium cal
 [![Python](https://img.shields.io/badge/python-3.9%2B-blue)](https://www.python.org/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.0%2B-red)](https://pytorch.org/)
 [![Status](https://img.shields.io/badge/status-production--ready-green)](https://github.com/yashnil/chemCalculations)
-[![Log R²](https://img.shields.io/badge/Log_R²-0.9991-brightgreen)](https://github.com/yashnil/chemCalculations)
+[![Log R²](https://img.shields.io/badge/Log_R²-0.9994-brightgreen)](https://github.com/yashnil/chemCalculations)
 
 **Status: Production-Ready** ✅  
-**Best Model Performance**: Log R² = 0.9991, Log MAE = 0.0564, ~800× speed-up over FastChem
+**Best Model Performance**: Log R² = 0.9994, Log MAE = 0.0224, ~1362× speed-up over FastChem (batch mode)
 
 ---
 
@@ -64,8 +64,8 @@ Modern astrophysical applications require **millions to billions** of chemistry 
 
 We replace the iterative FastChem solver with a **trained neural network** that:
 
-✅ **Exceeds baseline accuracy**: Test Loss = 2.06×10⁻⁴, Log R² = 0.9991 (99.91% variance explained)  
-✅ **Achieves ~800× speed-up**: 7 ms → ~0.009 ms per evaluation  
+✅ **Exceeds baseline accuracy**: Test Loss = 1.50×10⁻⁴, Log R² = 0.9994 (99.94% variance explained)  
+✅ **Achieves ~1362× speed-up**: 7 ms → 0.005 ms per evaluation (batch mode)  
 ✅ **Handles full parameter space**: 750–3000 K, 10⁻¹⁰–10⁵ bar  
 ✅ **Focuses on important species**: Predicts 21 species (top-20 + electrons, >99.9% of mass)  
 ✅ **Eliminates artifacts**: Zero vertical striping through aggressive low-T filtering (T > 750K)  
@@ -186,7 +186,7 @@ We conducted three systematic hyperparameter studies to identify optimal model c
 | Aspect | FastChem | ML Emulator | Advantage |
 |--------|----------|-------------|-----------|
 | **Accuracy** | Exact (ground truth) | Log R² = 0.9994, Test Loss = 1.50×10⁻⁴ | Excellent match (99.94% variance) |
-| **Speed** | 7 ms/eval | 0.009 ms/eval | **~800× faster** |
+| **Speed** | 7 ms/eval | 0.005 ms/eval (batch) | **~1362× faster** |
 | **Scalability** | Linear | Parallel batching | GPU-accelerable |
 | **Deployment** | C++ binary | Python/PyTorch | Easy integration |
 | **Use case** | Ground truth | Production inference | Complementary |
@@ -508,7 +508,7 @@ def chemistry_step(T, P, composition):
 # Use in your atmospheric model
 for layer in atmosphere:
     chem = chemistry_step(layer.T, layer.P, layer.composition)
-    # ~800× faster than calling FastChem!
+    # ~1362× faster than calling FastChem (batch mode)!
 ```
 
 ---
@@ -525,7 +525,7 @@ If you use this emulator in your research, please cite:
   year = {2025},
   version = {1.0},
   url = {https://github.com/yashnil/chemCalculations},
-  note = {~800× speed-up over FastChem with Log R² = 0.9991}
+  note = {~1362× speed-up over FastChem (batch mode) with Log R² = 0.9994}
 }
 ```
 
@@ -710,7 +710,7 @@ furnished to do so.
 
 - **Problem**: FastChem too slow (7 ms/call) for modern applications
 - **Solution**: Neural network emulator (0.009 ms/call)
-- **Result**: ~800× faster with excellent accuracy (Log R² = 0.9991)
+- **Result**: ~1362× faster with excellent accuracy (Log R² = 0.9994, batch mode)
 - **Impact**: Enables retrievals, GCMs, and population studies that were previously infeasible
 
 **Current status**: Production-ready, validated, and recommended for all use cases.
@@ -720,7 +720,7 @@ furnished to do so.
 ---
 
 <p align="center">
-  <strong>FastChem ML Emulator — Accelerating Atmospheric Chemistry by ~800×</strong>
+  <strong>FastChem ML Emulator — Accelerating Atmospheric Chemistry by ~1362×</strong>
 </p>
 
 <p align="center">

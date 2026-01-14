@@ -20,19 +20,25 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import mean_absolute_error, r2_score
 
 # Import helpers from autoencoder best_model
-sys.path.append("runs_autoencoder")
-from best_model import (  # type: ignore
-    load_model,
-    normalize_inputs,
-    denormalize_targets,
-    forward_autoencoder,
-    TARGET_COLS,
-    INPUT_COLS,
-    SPLITS,
-    TARGET_ZERO_FLOOR,
-    LOG_EPS,
-    TARGET_LOG_SCALE,
-)
+BEST_MODULE = os.environ.get("BEST_MODULE", "runs_autoencoder/best_model.py")
+import importlib.util
+spec = importlib.util.spec_from_file_location("best_model", BEST_MODULE)
+if spec is None or spec.loader is None:
+    raise ImportError(f"Could not load module from {BEST_MODULE}")
+best_model = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(best_model)
+
+# Import from the loaded module
+load_model = best_model.load_model
+normalize_inputs = best_model.normalize_inputs
+denormalize_targets = best_model.denormalize_targets
+forward_autoencoder = best_model.forward_autoencoder
+TARGET_COLS = best_model.TARGET_COLS
+INPUT_COLS = best_model.INPUT_COLS
+SPLITS = best_model.SPLITS
+TARGET_ZERO_FLOOR = best_model.TARGET_ZERO_FLOOR
+LOG_EPS = best_model.LOG_EPS
+TARGET_LOG_SCALE = best_model.TARGET_LOG_SCALE
 
 # -----------------------------------------------------------------------------
 # Configuration
