@@ -43,10 +43,10 @@ Modern astrophysical applications require **millions to billions** of chemistry 
 
 | Application | Evaluations Needed | Time with FastChem | Time with ML Emulator |
 |-------------|-------------------|--------------------|-----------------------|
-| **1D Atmospheric Profile** | ~10⁴ | 70 seconds | **0.03 seconds** |
-| **Exoplanet Retrieval** | ~10⁷ | 19.4 hours | **30 seconds** |
-| **3D GCM Simulation** | ~10⁹ | 81 days | **6 hours** |
-| **Population Study** | ~10¹⁰ | 2.2 years | **2.3 days** |
+| **1D Atmospheric Profile** | ~10⁴ | 70 seconds | **0.05 seconds** |
+| **Exoplanet Retrieval** | ~10⁷ | 19.4 hours | **51 seconds** |
+| **3D GCM Simulation** | ~10⁹ | 81 days | **1.4 hours** |
+| **Population Study** | ~10¹⁰ | 2.2 years | **14.3 hours** |
 
 **The bottleneck**: Chemical equilibrium calculations dominate runtime in:
 - JWST/HST atmospheric retrievals
