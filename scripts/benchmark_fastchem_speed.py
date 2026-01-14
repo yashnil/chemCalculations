@@ -79,10 +79,13 @@ def main():
     # Initialize FastChem
     print("Initializing FastChem...")
     try:
+        # FastChem constructor: FastChem(elements_path, logk_path, logk_cond_path, use_condensates)
+        # use_condensates = 0 (false) for gas-only calculations
         fastchem = pyfastchem.FastChem(
+            str(elem_path),
             str(logk_path),
             str(cond_path),
-            str(elem_path),
+            0  # use_condensates = False
         )
         print("✓ FastChem initialized")
     except Exception as e:
@@ -126,9 +129,10 @@ def main():
         try:
             # Create new engine instance for each evaluation (matches run_fastchem_batch.py)
             engine = pyfastchem.FastChem(
+                str(elem_path),
                 str(logk_path),
                 str(cond_path),
-                str(elem_path),
+                0  # use_condensates = False
             )
             
             # Set element abundances
@@ -173,10 +177,12 @@ def main():
         t0 = time.perf_counter()
         try:
             # Create new engine instance (matches actual usage pattern)
+            # FastChem constructor: FastChem(elements_path, logk_path, logk_cond_path, use_condensates)
             engine = pyfastchem.FastChem(
+                str(elem_path),
                 str(logk_path),
                 str(cond_path),
-                str(elem_path),
+                0  # use_condensates = False
             )
             
             # Set element abundances
