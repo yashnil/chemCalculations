@@ -359,7 +359,7 @@ Decoder:
 - **SiLU activation**: Smooth, self-gated activation function
 - **No dropout**: Model doesn't overfit with sufficient data
 - **Residual connections**: In dynamics module for better gradient flow
-- **Weighted Huber loss**: Robust to outliers (δ=0.02)
+- **Log-ratio loss**: Direct log-space error minimization (L = |log₁₀(ŷ/y)|, computed in normalized space)
 - **Adaptive LR**: ReduceLROnPlateau (reduces LR when validation plateaus)
 
 ### Input Features (7 total)
