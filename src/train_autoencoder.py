@@ -636,7 +636,7 @@ def main() -> None:
     parser.add_argument("--config", type=str, default=None,
                         help="Path to config JSON file (default: use module-level constants)")
     parser.add_argument("--loss-type", type=str, default="huber", choices=["huber", "mse", "log_ratio"],
-                        help="Loss function: 'huber' (weighted, normalized), 'mse' (normalized), or 'log_ratio' (linear space)")
+                        help="Loss function: 'huber' (weighted, normalized), 'mse' (normalized), or 'log_ratio'")
     parser.add_argument("--run-dir", type=str, default=None,
                         help="Output directory (default: runs_autoencoder_{dataset_tag})")
     args = parser.parse_args()
@@ -677,6 +677,7 @@ def main() -> None:
     X_val, X_test, y_val, y_test, idx_val, idx_test = train_test_split(
         X_tmp, y_tmp, idx_tmp, train_size=val_ratio, random_state=SEED + 1, shuffle=True
     )
+    
 
     # Log-ratio loss now works in normalized space, so no need for linear targets
     train_ds = AutoencoderDataset(X_train, y_train)
