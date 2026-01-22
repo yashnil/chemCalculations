@@ -1,0 +1,8 @@
+[merge] jobs root : /Users/yashnilmohanty/Desktop/chemCalculations/fastchem_jobs_x240
+[merge] reference : /Users/yashnilmohanty/Desktop/chemCalculations/data/datasets/all_gas_fastchem_x160.csv
+[merge] output    : /Users/yashnilmohanty/Desktop/chemCalculations/data/datasets/all_gas_fastchem_x240.csv
+[merge] metadata columns: ['T_K', 'P_bar', 'abund_H_dex', 'abund_O_dex', 'abund_C_dex', 'abund_N_dex', 'abund_S_dex']
+[merge] species columns : 123
+[merge] Loaded 240000 prediction rows from 120 shard(s)
+[merge] Warning: dropping 14 row(s) containing NaN/Inf values
+[merge] ✓ Saved merged CSV with 239986 rows → /Users/yashnilmohanty/Desktop/chemCalculations/data/datasets/all_gas_fastchem_x240.csv
