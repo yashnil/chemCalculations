@@ -39,7 +39,7 @@ PLOTS_DIR = BASE_DIR / "plots"
 # Datasets to train
 DEFAULT_DATASETS = ["x240", "x480", "x640"]
 BASELINE_MODEL = "x160_static_32"
-BASELINE_RUN_DIR = BASE_DIR / f"runs_autoencoder_{BASELINE_MODEL}"
+BASELINE_RUN_DIR = BASE_DIR / "results" / "runs" / f"runs_autoencoder_{BASELINE_MODEL}"
 
 
 def check_dataset_exists(tag: str) -> bool:
@@ -51,7 +51,7 @@ def check_dataset_exists(tag: str) -> bool:
 def train_model(tag: str) -> Optional[Path]:
     """Train a model for a given dataset tag."""
     config_path = CONFIGS_DIR / f"{tag}_static_32_config.json"
-    run_dir = BASE_DIR / f"runs_autoencoder_{tag}_static_32"
+    run_dir = BASE_DIR / "results" / "runs" / f"runs_autoencoder_{tag}_static_32"
     
     if not config_path.exists():
         print(f"❌ Config not found: {config_path}")
@@ -293,7 +293,7 @@ def main():
     else:
         # Find existing run directories
         for tag in args.datasets:
-            run_dir = BASE_DIR / f"runs_autoencoder_{tag}_static_32"
+            run_dir = BASE_DIR / "results" / "runs" / f"runs_autoencoder_{tag}_static_32"
             if run_dir.exists():
                 trained_runs.append(run_dir)
     

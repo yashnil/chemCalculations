@@ -49,7 +49,7 @@ CSV_PATH = os.environ.get(
     "CSV_PATH",
     str(Path(__file__).resolve().parent.parent / "data" / "datasets" / "all_gas_fastchem_x160.csv"),
 )
-OUT_DIR = Path("runs_autoencoder")
+OUT_DIR = Path("results/runs/runs_autoencoder")
 
 SEED = 42
 TRAIN_FRAC = 0.85

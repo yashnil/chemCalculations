@@ -84,7 +84,7 @@ check_prerequisites() {
 # Run FastChem for a single dataset
 run_fastchem_for_dataset() {
     local tag=$1
-    local jobs_root="$BASE_DIR/fastchem_jobs_${tag}"
+    local jobs_root="$BASE_DIR/results/fastchem_jobs/fastchem_jobs_${tag}"
     local output_csv="$BASE_DIR/data/datasets/all_gas_fastchem_${tag}.csv"
     
     log "=========================================="
@@ -204,7 +204,7 @@ main() {
     echo "Results:"
     echo "  - Comparison metrics: plots/comparison_metrics.csv"
     echo "  - Comparison plot: plots/large_dataset_comparison.png"
-    echo "  - Individual diagnostics: runs_autoencoder_*_static_32/diagnostics/"
+    echo "  - Individual diagnostics: results/runs/runs_autoencoder_*_static_32/diagnostics/"
     echo ""
     echo "Full log: $LOG_FILE"
     echo "Completed: $(date)" >> "$LOG_FILE"

@@ -29,8 +29,8 @@ CSV_PATH = os.environ.get(
     "CSV_PATH",
     "/Users/yashnilmohanty/Desktop/chemCalculations/NEW_VERS/all_gas_v10_no_stripe_clean.csv",
 )
-BEST_MODULE = os.environ.get("BEST_MODULE", os.path.join("runs_autoencoder", "best_model.py"))
-OUT_PNG = os.environ.get("OUT_PNG", os.path.join("runs_autoencoder", "pred_vs_true_test.png"))
+BEST_MODULE = os.environ.get("BEST_MODULE", os.path.join("results", "runs", "runs_autoencoder", "best_model.py"))
+OUT_PNG = os.environ.get("OUT_PNG", os.path.join("results", "runs", "runs_autoencoder", "pred_vs_true_test.png"))
 
 LOG10_AXES = True
 CLAMP_SCALED_BEFORE_DENORM = True

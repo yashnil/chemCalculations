@@ -25,9 +25,9 @@ echo "==================================================================="
 
 # Test configurations
 CONFIGS=(
-    "configs/x160_static_24_config.json:runs_autoencoder_x160_static_24"
-    "configs/x160_static_32_config.json:runs_autoencoder_x160_static_32"
-    "configs/x160_static_36_config.json:runs_autoencoder_x160_static_36"
+    "configs/x160_static_24_config.json:results/runs/runs_autoencoder_x160_static_24"
+    "configs/x160_static_32_config.json:results/runs/runs_autoencoder_x160_static_32"
+    "configs/x160_static_36_config.json:results/runs/runs_autoencoder_x160_static_36"
 )
 
 CSV_PATH="$PROJECT_ROOT/data/datasets/all_gas_fastchem_x160.csv"

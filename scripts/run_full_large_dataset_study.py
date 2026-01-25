@@ -118,7 +118,7 @@ def run_fastchem_for_dataset(tag: str, logk: str, cond: str) -> bool:
     log(f"Processing dataset: {tag}")
     log("=" * 80)
     
-    jobs_root = BASE_DIR / f"fastchem_jobs_{tag}"
+    jobs_root = BASE_DIR / "results" / "fastchem_jobs" / f"fastchem_jobs_{tag}"
     output_csv = DATA_DIR / f"all_gas_fastchem_{tag}.csv"
     
     # Check if dataset already exists
@@ -269,7 +269,7 @@ def main():
     print("Results:")
     print("  - Comparison metrics: plots/comparison_metrics.csv")
     print("  - Comparison plot: plots/large_dataset_comparison.png")
-    print("  - Individual diagnostics: runs_autoencoder_*_static_32/diagnostics/")
+    print("  - Individual diagnostics: results/runs/runs_autoencoder_*_static_32/diagnostics/")
     print()
     print(f"Full log: {LOG_FILE}")
     

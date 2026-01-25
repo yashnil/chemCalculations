@@ -41,9 +41,7 @@ scripts/data_generation/fastchem_jobs_*/
 # Environment
 venv/
 env/
-.venv/
-
-# History/archived versions
+.venv/# History/archived versions
 history/
 artefacts/
 results/

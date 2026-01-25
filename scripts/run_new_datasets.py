@@ -130,11 +130,11 @@ def ensure_clean_dataset(csv_path: Path) -> Path:
 
 
 def archive_runs(tag: str) -> None:
-    run_dir = BASE_DIR / "runs_autoencoder"
+    run_dir = BASE_DIR / "results" / "runs" / "runs_autoencoder"
     if not run_dir.exists():
         raise RuntimeError(f"Expected runs_autoencoder directory not found after training for {tag}")
 
-    archive_dir = BASE_DIR / f"runs_autoencoder_{tag}"
+    archive_dir = BASE_DIR / "results" / "runs" / f"runs_autoencoder_{tag}"
     if archive_dir.exists():
         print(f"[archive] removing previous archive {archive_dir}")
         shutil.rmtree(archive_dir)
@@ -144,7 +144,7 @@ def archive_runs(tag: str) -> None:
 
 
 def clean_runs_dir() -> None:
-    run_dir = BASE_DIR / "runs_autoencoder"
+    run_dir = BASE_DIR / "results" / "runs" / "runs_autoencoder"
     if run_dir.exists():
         print(f"[cleanup] removing stale {run_dir}")
         shutil.rmtree(run_dir)
@@ -158,7 +158,7 @@ def process_dataset(cfg: Dict[str, int | str]) -> None:
 
     print(f"\n===== Processing dataset {tag} ({retain} rows target) =====")
 
-    jobs_root = BASE_DIR / f"fastchem_jobs_{tag}"
+    jobs_root = BASE_DIR / "results" / "fastchem_jobs" / f"fastchem_jobs_{tag}"
     raw_csv = DATASETS_DIR / f"all_gas_fastchem_{tag}_raw.csv"
     final_csv = DATASETS_DIR / f"all_gas_fastchem_{tag}.csv"
     elements_path = os.environ.get("FASTCHEM_ELEM")
@@ -246,8 +246,8 @@ def process_dataset(cfg: Dict[str, int | str]) -> None:
     # Step 6: diagnostics
     diagnostics_env = os.environ.copy()
     diagnostics_env["CSV_PATH"] = str(final_csv)
-    diagnostics_env["BEST_MODULE"] = str(BASE_DIR / "runs_autoencoder" / "best_model.py")
-    diagnostics_env["OUT_DIR"] = str(BASE_DIR / "runs_autoencoder" / "diagnostics")
+    diagnostics_env["BEST_MODULE"] = str(BASE_DIR / "results" / "runs" / "runs_autoencoder" / "best_model.py")
+    diagnostics_env["OUT_DIR"] = str(BASE_DIR / "results" / "runs" / "runs_autoencoder" / "diagnostics")
     diagnostics_cmd = [
         PYTHON,
         str(BASE_DIR / "diagnostics.py"),
@@ -256,7 +256,7 @@ def process_dataset(cfg: Dict[str, int | str]) -> None:
 
     # Step 7: plot
     plot_env = diagnostics_env.copy()
-    plot_env["OUT_PNG"] = str(BASE_DIR / "runs_autoencoder" / "pred_vs_true_test.png")
+    plot_env["OUT_PNG"] = str(BASE_DIR / "results" / "runs" / "runs_autoencoder" / "pred_vs_true_test.png")
     plot_cmd = [
         PYTHON,
         str(BASE_DIR / "plot.py"),

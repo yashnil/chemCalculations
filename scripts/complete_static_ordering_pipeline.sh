@@ -33,15 +33,15 @@ check_training() {
 }
 
 echo "Checking training status..."
-echo "  x160_static_24: $(check_training runs_autoencoder_x160_static_24 && echo 'Ready' || echo 'Training...')"
-echo "  x160_static_32: $(check_training runs_autoencoder_x160_static_32 && echo 'Ready' || echo 'Training...')"
-echo "  x160_static_36: $(check_training runs_autoencoder_x160_static_36 && echo 'Ready' || echo 'Training...')"
+echo "  x160_static_24: $(check_training results/runs/runs_autoencoder_x160_static_24 && echo 'Ready' || echo 'Training...')"
+echo "  x160_static_32: $(check_training results/runs/runs_autoencoder_x160_static_32 && echo 'Ready' || echo 'Training...')"
+echo "  x160_static_36: $(check_training results/runs/runs_autoencoder_x160_static_36 && echo 'Ready' || echo 'Training...')"
 echo ""
 
 # Function to run diagnostics and update metrics
 process_model() {
     local model_name=$1
-    local run_dir="runs_autoencoder_${model_name}"
+    local run_dir="results/runs/runs_autoencoder_${model_name}"
     local csv_path="data/datasets/all_gas_fastchem_x160.csv"
     
     echo "Processing $model_name..."
@@ -131,6 +131,6 @@ echo "✅ Pipeline complete!"
 echo ""
 echo "Next steps:"
 echo "  1. Review plots/comparison_metrics.csv"
-echo "  2. Check diagnostic plots in runs_autoencoder_*/diagnostics/"
+echo "  2. Check diagnostic plots in results/runs/runs_autoencoder_*/diagnostics/"
 echo ""
 

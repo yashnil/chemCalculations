@@ -38,8 +38,8 @@ CSV_PATH = os.environ.get(
     "CSV_PATH",
     "/Users/yashnilmohanty/Desktop/chemCalculations/NEW_VERS/all_gas_v10_no_stripe_clean.csv",
 )
-BEST_MODULE = os.environ.get("BEST_MODULE", "runs_autoencoder/best_model.py")
-OUT_DIR = Path(os.environ.get("OUT_DIR", "runs_autoencoder/diagnostics"))
+BEST_MODULE = os.environ.get("BEST_MODULE", "results/runs/runs_autoencoder/best_model.py")
+OUT_DIR = Path(os.environ.get("OUT_DIR", "results/runs/runs_autoencoder/diagnostics"))
 
 FIGSIZE_LARGE = (15, 6)
 FIGSIZE_SINGLE = (8, 6)

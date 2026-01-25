@@ -20,7 +20,7 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import mean_absolute_error, r2_score
 
 # Import helpers from autoencoder best_model
-BEST_MODULE = os.environ.get("BEST_MODULE", "runs_autoencoder/best_model.py")
+BEST_MODULE = os.environ.get("BEST_MODULE", "results/runs/runs_autoencoder/best_model.py")
 import importlib.util
 spec = importlib.util.spec_from_file_location("best_model", BEST_MODULE)
 if spec is None or spec.loader is None:
@@ -44,7 +44,7 @@ TARGET_LOG_SCALE = best_model.TARGET_LOG_SCALE
 # Configuration
 # -----------------------------------------------------------------------------
 CSV_PATH = os.environ.get("CSV_PATH", "all_gas_v10_no_stripe_clean.csv")
-OUT_DIR = os.environ.get("OUT_DIR", "runs_autoencoder/speed_test")
+OUT_DIR = os.environ.get("OUT_DIR", "results/runs/runs_autoencoder/speed_test")
 N_WARMUP = int(os.environ.get("N_WARMUP", 10))
 N_TIMING_RUNS = int(os.environ.get("N_TIMING_RUNS", 100))
 BATCH_SIZES = [1, 10, 50, 100, 621]

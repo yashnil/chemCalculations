@@ -79,7 +79,7 @@ if [ "$SKIP_DATA_GEN" = false ]; then
         for tag in x240 x480 x640; do
             echo "Running FastChem for $tag..."
             python scripts/data_generation/run_fastchem_all.py \
-                --jobs-root "fastchem_jobs_${tag}" \
+                --jobs-root "results/fastchem_jobs/fastchem_jobs_${tag}" \
                 --logk "${FASTCHEM_LOGK}" \
                 --logk-cond "${FASTCHEM_COND}" \
                 --chunksize 128 || {
@@ -88,7 +88,7 @@ if [ "$SKIP_DATA_GEN" = false ]; then
             
             echo "Merging results for $tag..."
             python scripts/data_generation/merge_fastchem_outputs.py \
-                --jobs-root "fastchem_jobs_${tag}" \
+                --jobs-root "results/fastchem_jobs/fastchem_jobs_${tag}" \
                 --reference-csv data/datasets/all_gas_fastchem_x160.csv \
                 --output-csv "data/datasets/all_gas_fastchem_${tag}.csv" || {
                     echo "⚠️  Merge failed for $tag - continuing..."

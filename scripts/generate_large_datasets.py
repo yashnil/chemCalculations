@@ -40,7 +40,7 @@ def generate_dataset(tag: str, total_samples: int):
     print(f"{'='*80}")
     
     # Output paths
-    jobs_root = BASE_DIR / f"fastchem_jobs_{tag}"
+    jobs_root = BASE_DIR / "results" / "fastchem_jobs" / f"fastchem_jobs_{tag}"
     output_csv = DATA_DIR / f"all_gas_fastchem_{tag}.csv"
     
     if output_csv.exists():
