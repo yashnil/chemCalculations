@@ -47,19 +47,38 @@ def load_loss_history(run_dir: Path) -> pd.DataFrame:
 
 
 def plot_loss_curves(run_tags: List[str], base_dir: Path, output_path: Path):
-    """Plot loss curves. base_dir should point to models/archive/"""
     """Plot training and validation loss curves for specified runs."""
     fig, axes = plt.subplots(1, 2, figsize=(14, 5))
     
+    # Try multiple base directories as fallback
+    # Assume project root is 2 levels up from src/ or results/
+    script_dir = Path(__file__).resolve().parent
+    project_root = script_dir.parent
+    fallback_dirs = [
+        base_dir,
+        project_root / "models" / "archive",
+        project_root / "results" / "runs",
+    ]
+    
     for idx, tag in enumerate(run_tags):
-        # Try multiple possible directory patterns
-        run_dir = base_dir / f"runs_autoencoder_{tag}"
-        if not run_dir.exists():
-            run_dir = base_dir / f"runs_autoencoder_optimal_{tag}"
-        if not run_dir.exists():
-            run_dir = base_dir / f"runs_autoencoder_latent{tag}"
-        if not run_dir.exists():
-            print(f"Warning: {run_dir} not found, skipping...")
+        run_dir = None
+        # Try multiple possible directory patterns in each base directory
+        for search_dir in fallback_dirs:
+            patterns = [
+                f"runs_autoencoder_{tag}",
+                f"runs_autoencoder_optimal_{tag}",
+                f"runs_autoencoder_latent{tag}",
+            ]
+            for pattern in patterns:
+                candidate = search_dir / pattern
+                if candidate.exists():
+                    run_dir = candidate
+                    break
+            if run_dir:
+                break
+        
+        if run_dir is None:
+            print(f"Warning: Run '{tag}' not found in any base directory, skipping...")
             continue
         
         history = load_loss_history(run_dir)
@@ -238,9 +257,10 @@ def plot_model_size_comparison(metrics_csv: Path, output_path: Path):
 
 def main():
     parser = argparse.ArgumentParser(description="Generate training analysis plots")
-    parser.add_argument("--runs", nargs="+", default=["x160_new", "x160_mse"],
-                        help="Run tags to plot loss curves for (default: x160_new x160_mse)")
-    parser.add_argument("--base-dir", type=Path, default=Path(__file__).parent,
+    parser.add_argument("--runs", nargs="+", default=["x160_static_32"],
+                        help="Run tags to plot loss curves for (default: x160_static_32)")
+    parser.add_argument("--base-dir", type=Path, 
+                        default=Path(__file__).resolve().parent.parent / "results" / "runs",
                         help="Base directory containing run folders")
     parser.add_argument("--metrics-csv", type=Path, 
                         default=Path(__file__).resolve().parent.parent / "plots" / "comparison_metrics.csv",
