@@ -32,13 +32,9 @@ scripts/data_generation/fastchem_jobs_*/
 .vscode/
 .idea/
 *.swp
-*.swo
-
-# Jupyter
+*.swo# Jupyter
 .ipynb_checkpoints/
-*.ipynb
-
-# Environment
+*.ipynb# Environment
 venv/
 env/
 .venv/# History/archived versions

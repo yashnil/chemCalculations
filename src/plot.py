@@ -25,17 +25,20 @@ except OSError:
 # -----------------------------------------------------------------------------
 # Configuration
 # -----------------------------------------------------------------------------
+# Default to best model (x800_optimal_retrained) if not specified via environment
 CSV_PATH = os.environ.get(
     "CSV_PATH",
-    "/Users/yashnilmohanty/Desktop/chemCalculations/NEW_VERS/all_gas_v10_no_stripe_clean.csv",
+    os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "datasets", "all_gas_fastchem_x800.csv"),
 )
-BEST_MODULE = os.environ.get("BEST_MODULE", os.path.join("results", "runs", "runs_autoencoder", "best_model.py"))
-OUT_PNG = os.environ.get("OUT_PNG", os.path.join("results", "runs", "runs_autoencoder", "pred_vs_true_test.png"))
+BEST_MODULE = os.environ.get("BEST_MODULE", os.path.join("results", "runs", "runs_autoencoder_x800_optimal_retrained", "best_model.py"))
+OUT_PNG = os.environ.get("OUT_PNG", os.path.join("plots", "pred_vs_true_test_filtered.png"))
 
 LOG10_AXES = True
 CLAMP_SCALED_BEFORE_DENORM = True
 CLAMP_MIN_SCALED = -1.0
 CLAMP_MAX_SCALED = 0.0
+# Use same clipping threshold as diagnostics.py for consistency
+CLIP = 1e-10  # Filter out very small abundances for cleaner visualization
 
 logging.basicConfig(
     level=logging.INFO,
@@ -179,21 +182,25 @@ def main() -> None:
     y_pred_flat = y_pred_linear.reshape(-1)
     y_true_flat = y_true_linear_floor.reshape(-1)
 
+    # Use same filtering as diagnostics.py for consistency and better visualization
+    # Filter out very small abundances (< 1e-10) that may be numerical noise
+    
     if LOG10_AXES:
-        mask = (y_true_flat > 0.0) & (y_pred_flat > 0.0)
+        mask = (y_true_flat > CLIP) & (y_pred_flat > CLIP)
         x_plot = y_true_flat[mask]
         y_plot = y_pred_flat[mask]
     else:
-        x_plot = y_true_flat
-        y_plot = y_pred_flat
+        mask = (y_true_flat > CLIP) & (y_pred_flat > CLIP)
+        x_plot = y_true_flat[mask]
+        y_plot = y_pred_flat[mask]
 
     if x_plot.size and y_plot.size:
         vmin = float(min(x_plot.min(), y_plot.min()))
         vmax = float(max(x_plot.max(), y_plot.max()))
     else:
-        vmin, vmax = 1e-30, 1.0
+        vmin, vmax = CLIP, 1.0
     if not np.isfinite(vmin):
-        vmin = 1e-30
+        vmin = CLIP
     if not np.isfinite(vmax) or vmax <= vmin:
         vmax = vmin * 10.0
 
@@ -205,8 +212,9 @@ def main() -> None:
     if LOG10_AXES and x_plot.size:
         plt.xscale("log")
         plt.yscale("log")
-        plt.xlim(1e-30, 1)
-        plt.ylim(1e-30, 1)
+        # Use same limits as parity_overall.png for consistency
+        plt.xlim(CLIP, 1)
+        plt.ylim(CLIP, 1)
     plt.tight_layout()
 
     out_path = os.path.abspath(OUT_PNG)

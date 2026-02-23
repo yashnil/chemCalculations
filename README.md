@@ -5,10 +5,11 @@ A high-performance machine learning surrogate model for chemical equilibrium cal
 [![Python](https://img.shields.io/badge/python-3.9%2B-blue)](https://www.python.org/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.0%2B-red)](https://pytorch.org/)
 [![Status](https://img.shields.io/badge/status-production--ready-green)](https://github.com/yashnil/chemCalculations)
-[![Log R²](https://img.shields.io/badge/Log_R²-0.9994-brightgreen)](https://github.com/yashnil/chemCalculations)
+[![Log R²](https://img.shields.io/badge/Log_R²-0.9998-brightgreen)](https://github.com/yashnil/chemCalculations)
 
 **Status: Production-Ready** ✅  
-**Best Model Performance**: Log R² = 0.9994, Log MAE = 0.0224, ~999× speed-up over FastChem (batch mode, measured)
+**Best Model Performance**: Log R² = 0.9998, Log MAE = 0.0149 dex, ~999× speed-up over FastChem (batch mode, measured)  
+**Best Model**: x4000_optimal_retrained (4000K samples, optimal architecture)
 
 ---
 
@@ -35,7 +36,21 @@ Chemical equilibrium calculations are fundamental to understanding planetary and
 - **Pressure** (10⁻¹⁰–10⁵ bar)
 - **Elemental composition** (H, He, C, N, O, S, metals)
 
-Traditional iterative solvers like [FastChem](https://github.com/exoclime/FastChem) are accurate but **computationally expensive**: ~7 milliseconds per evaluation.
+### What is FastChem?
+
+[FastChem](https://github.com/exoclime/FastChem) is a state-of-the-art chemical equilibrium solver developed by Stock, Kitzmann, and Patzer (2018) for calculating gas-phase chemical abundances in planetary and stellar atmospheres. It solves the system of non-linear equations that govern chemical equilibrium:
+
+- **Mass conservation**: Total abundance of each element is conserved
+- **Charge neutrality**: Total positive and negative charges balance
+- **Equilibrium constants**: Species abundances follow temperature-dependent equilibrium relations
+
+FastChem uses an iterative Newton-Raphson solver to find the equilibrium state, handling hundreds of species and reactions simultaneously. It is widely used in:
+- **Exoplanet atmospheric retrievals** (JWST, HST observations)
+- **Brown dwarf and hot Jupiter climate models** (3D GCMs)
+- **Stellar atmosphere modeling**
+- **Planetary formation studies**
+
+**The Problem**: FastChem is accurate but **computationally expensive**: ~5.1 milliseconds per evaluation (measured). This becomes prohibitive when millions to billions of evaluations are needed.
 
 ### Why This Matters
 
@@ -64,13 +79,13 @@ Modern astrophysical applications require **millions to billions** of chemistry 
 
 We replace the iterative FastChem solver with a **trained neural network** that:
 
-✅ **Exceeds baseline accuracy**: Test Loss = 1.50×10⁻⁴, Log R² = 0.9994 (99.94% variance explained)  
+✅ **Exceeds baseline accuracy**: Log R² = 0.9998 (99.98% variance explained), Log MAE = 0.0149 dex  
 ✅ **Achieves ~999× speed-up**: 5.1 ms → 0.005 ms per evaluation (batch mode, measured)  
 ✅ **Handles full parameter space**: 750–3000 K, 10⁻¹⁰–10⁵ bar  
-✅ **Focuses on important species**: Predicts 21 species (top-20 + electrons, >99.9% of mass)  
+✅ **Focuses on important species**: Predicts 33 species (32 + electrons, 99.68% mass coverage)  
 ✅ **Eliminates artifacts**: Zero vertical striping through aggressive low-T filtering (T > 750K)  
 ✅ **Is production-ready**: PyTorch FlowMapAutoencoder, self-contained inference, comprehensive validation  
-✅ **Optimal dataset size**: 160K samples identified through systematic resolution study  
+✅ **Scales with data**: Performance improves from 160K to 4000K samples (62% Log MAE reduction)  
 
 ### Key Design Principles
 
@@ -89,14 +104,40 @@ We replace the iterative FastChem solver with a **trained neural network** that:
 
 ### Best Model Performance
 
-**🏆 Best Overall Performance:**
-- **Model**: x160_static_32 (FlowMapAutoencoder with static species ordering)
-- **Test Loss**: 1.50×10⁻⁴ (normalized space)
-- **Log MAE**: 0.0224 (orders of magnitude error)
-- **Log R²**: 0.9994 (99.94% variance explained)
-- **Dataset Size**: 160,000 samples
+**🏆 Best Overall Performance (x4000_optimal_retrained):**
+- **Model**: x4000_optimal_retrained (FlowMapAutoencoder with optimal architecture)
+- **Test Loss**: 1.60×10⁻² (normalized log_ratio space)
+- **Validation Loss**: 1.60×10⁻²
+- **Log MAE**: 0.0149 dex (mean absolute error in log₁₀ space)
+- **Log R²**: 0.9998 (99.98% variance explained in log space)
+- **Dataset Size**: 4,000,000 samples
 - **Architecture**: latent_dim=192, width=512, layers=3, SiLU activation
 - **Species**: 33 species (32 + e-) with static ordering (99.68% coverage)
+
+**Performance vs Dataset Size** (optimal_retrained models with consistent architecture):
+
+| Dataset Size | Test Loss | Val Loss | Log MAE (dex) | Log R² |
+|--------------|-----------|----------|---------------|--------|
+| 160K | 4.48×10⁻² | 4.28×10⁻² | 0.0394 | 0.9995 |
+| 480K | 3.49×10⁻² | 3.13×10⁻² | 0.0319 | 0.9992 |
+| 800K | 2.69×10⁻² | 2.56×10⁻² | 0.0248 | 0.9994 |
+| 1120K | 2.39×10⁻² | 2.33×10⁻² | 0.0221 | 0.9996 |
+| 1440K | 2.07×10⁻² | 2.02×10⁻² | 0.0191 | 0.9998 |
+| 1760K | 2.42×10⁻² | 2.29×10⁻² | 0.0224 | 0.9994 |
+| 2080K | 1.85×10⁻² | 1.84×10⁻² | 0.0172 | 0.9998 |
+| 2400K | 1.71×10⁻² | 1.68×10⁻² | 0.0157 | 0.9998 |
+| 2720K | 1.86×10⁻² | 1.93×10⁻² | 0.0174 | 0.9995 |
+| 3040K | 1.79×10⁻² | 1.74×10⁻² | 0.0166 | 0.9998 |
+| 3360K | 1.82×10⁻² | 1.72×10⁻² | 0.0168 | 0.9997 |
+| 3680K | 1.74×10⁻² | 1.69×10⁻² | 0.0163 | 0.9997 |
+| 4000K | **1.60×10⁻²** | **1.60×10⁻²** | **0.0149** | **0.9998** |
+
+**Key Observations**:
+- Performance improves significantly with dataset size up to 4000K
+- Log R² remains consistently high (≥0.9992) across all sizes, reaching 0.9998 at 4000K
+- Log MAE decreases from 0.0394 (160K) to 0.0149 (4000K) — **62% improvement**
+- Test loss decreases from 4.48×10⁻² (160K) to 1.60×10⁻² (4000K) — **64% improvement**
+- Best performance achieved at 4000K samples with Log R² = 0.9998
 
 **Training Configuration**:
 - Dataset: 160K samples (750–3000 K, T > 750K filter)
@@ -150,18 +191,22 @@ We conducted three systematic hyperparameter studies to identify optimal model c
 #### Test #3: Dataset Size Study with Optimal Hyperparameters
 **Objective**: Evaluate optimal hyperparameters across different dataset sizes
 
-**Configuration**: latent_dim=192, width=512, layers=3, static ordering  
-**Tested sizes**: x32, x48, x64, x80, x96, x112, x128, x144, x160, x176, x192, x208, x224
+**Configuration**: latent_dim=192, width=512, layers=3, static ordering, log_ratio loss  
+**Tested sizes**: 160K, 480K, 800K, 1120K, 1440K, 1760K, 2080K, 2400K, 2720K, 3040K, 3360K, 3680K, 4000K
 
 **Key Findings**:
-- Optimal hyperparameters work best at x160 (the size they were optimized on)
-- x160_optimal: test_loss=0.000339, log_mae=0.109
-- x160_static_32: test_loss=0.000150, log_mae=0.0224 (best overall)
-- Smaller datasets perform worse with these hyperparameters
-- Confirms x160 as optimal dataset size
-- Static ordering provides consistent improvement across all sizes
+- Performance improves significantly with dataset size up to 4000K
+- Log R² remains consistently high (≥0.9992) across all sizes, reaching 0.9998 at 4000K
+- Log MAE decreases from 0.0394 dex (160K) to 0.0149 dex (4000K) — **62% improvement**
+- Test loss decreases from 4.48×10⁻² (160K) to 1.60×10⁻² (4000K) — **64% improvement**
+- Best performance achieved at 4000K samples with Log R² = 0.9998
+- **Current best**: x4000_optimal_retrained (4000K samples)
 
-**Plot**: `plots/dataset_size_study_optimal.png`  
+**Plots**: 
+- `plots/performance_vs_size.png` - Main performance metrics
+- `plots/performance_vs_size_comprehensive.png` - With trend analysis
+- `plots/asymptote_analysis.png` - Asymptote behavior analysis
+
 **Full results**: See `plots/comparison_metrics.csv`
 
 #### Test #4: Static Species Ordering Study
@@ -185,7 +230,7 @@ We conducted three systematic hyperparameter studies to identify optimal model c
 
 | Aspect | FastChem | ML Emulator | Advantage |
 |--------|----------|-------------|-----------|
-| **Accuracy** | Exact (ground truth) | Log R² = 0.9994, Test Loss = 1.50×10⁻⁴ | Excellent match (99.94% variance) |
+| **Accuracy** | Exact (ground truth) | Log R² = 0.9998, Test Loss = 1.60×10⁻² | Excellent match (99.98% variance) |
 | **Speed** | 5.1 ms/eval (measured) | 0.005 ms/eval (batch) | **~999× faster** |
 | **Scalability** | Linear | Parallel batching | GPU-accelerable |
 | **Deployment** | C++ binary | Python/PyTorch | Easy integration |
@@ -596,13 +641,22 @@ We welcome contributions! Areas of interest:
 
 ### Data Generation
 
-**Source**: FastChem v3.0+  
+**Source**: FastChem v3.0+ (Stock et al. 2018)  
 **Sampling strategy**: Stratified T-P grid with randomized elemental compositions
 - Temperature bins: 20 (covering 750–3000 K after filtering)
 - Pressure bins: 20 (log-uniform from 10⁻¹⁰ to 10⁵ bar)
-- Elemental compositions: Random sampling in log-space
+- Elemental compositions: Random sampling in log-space (dex scale)
+- Jitter: ±50K temperature, ±0.1 dex pressure, ±0.05 dex abundances
 
-**Total samples**: 160,000 (optimal size identified through resolution study)
+**Dataset sizes**: 160K, 320K, 480K, 640K, 800K (with 960K and 1120K planned)
+- All datasets use consistent sampling strategy
+- Generated using FastChem Python bindings (`pyfastchem`)
+- Merged and validated against reference schema
+
+**Data quality**:
+- Low-temperature filter: T > 750K (removes numerical artifacts)
+- Mass conservation: Validated against FastChem outputs
+- Coverage: 99.68% of total mass with 33 species (static ordering)
 
 ### Normalization Philosophy
 
@@ -710,14 +764,24 @@ furnished to do so.
 
 **FastChem ML Emulator** solves the computational bottleneck in atmospheric modeling:
 
-- **Problem**: FastChem too slow (5.1 ms/call measured) for modern applications
-- **Solution**: Neural network emulator (0.005 ms/call batch mode)
-- **Result**: ~999× faster with excellent accuracy (Log R² = 0.9994, measured)
-- **Impact**: Enables retrievals, GCMs, and population studies that were previously infeasible
+- **Problem**: FastChem too slow (5.1 ms/call measured) for modern applications requiring millions to billions of evaluations
+- **Solution**: Neural network emulator (0.005 ms/call batch mode) with FlowMapAutoencoder architecture
+- **Result**: ~999× faster with excellent accuracy (Log R² = 0.9998, Log MAE = 0.0149 dex)
+- **Impact**: Enables JWST/HST retrievals, 3D GCMs, and population studies that were previously infeasible
+- **Scalability**: Performance improves with dataset size (tested up to 4000K samples, achieving 62% Log MAE improvement)
 
 **Current status**: Production-ready, validated, and recommended for all use cases.
 
-**Get started**: `cd src && python train_autoencoder.py`
+**Best model**: x4000_optimal_retrained (4000K samples) — see `results/runs/runs_autoencoder_x4000_optimal_retrained/`
+
+**Get started**: 
+```bash
+# Train a model
+cd src && python train_autoencoder.py --config ../configs/x4000_optimal_retrained.json
+
+# Or use pre-trained model
+python -c "from results.runs.runs_autoencoder_x4000_optimal_retrained.best_model import load_model; model = load_model()"
+```
 
 ---
 

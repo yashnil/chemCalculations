@@ -46,7 +46,7 @@ def load_loss_history(run_dir: Path) -> pd.DataFrame:
     return pd.read_csv(history_path)
 
 
-def plot_loss_curves(run_tags: List[str], base_dir: Path, output_path: Path):
+def plot_loss_curves(run_tags: List[str], base_dir: Path, output_path: Path, use_consistent: bool = True):
     """Plot training and validation loss curves for specified runs."""
     fig, axes = plt.subplots(1, 2, figsize=(14, 5))
     
@@ -93,11 +93,49 @@ def plot_loss_curves(run_tags: List[str], base_dir: Path, output_path: Path):
         color = COLORS[idx % len(COLORS)]
         label = f"{tag} ({loss_type}, n={n_samples})"
         
-        # Plot loss curves
+        # Detect incomparable validation losses (MSE vs log_ratio issue)
+        val_losses = history["val_loss"].values
+        train_losses = history["train_loss"].values
+        
+        # Find where validation loss jumps significantly (>10x increase)
+        val_diff = np.diff(val_losses)
+        jump_mask = np.abs(val_diff) > val_losses[:-1] * 10
+        jump_indices = np.where(jump_mask)[0]
+        
+        # Plot training loss (always correct - uses log_ratio throughout)
         axes[0].plot(history["epoch"], history["train_loss"], 
                     color=color, linestyle="-", linewidth=2, label=f"{label} train")
-        axes[0].plot(history["epoch"], history["val_loss"], 
-                    color=color, linestyle="--", linewidth=2, label=f"{label} val")
+        
+        if len(jump_indices) > 0:
+            # Found a jump - validation loss function changed
+            switch_epoch = jump_indices[-1] + 1
+            
+            # Plot incomparable epochs (MSE) with different style
+            epochs_incomparable = history["epoch"].iloc[:switch_epoch].values
+            val_loss_incomparable = val_losses[:switch_epoch]
+            
+            # Plot comparable epochs (log_ratio) with normal style
+            epochs_comparable = history["epoch"].iloc[switch_epoch:].values
+            val_loss_comparable = val_losses[switch_epoch:]
+            
+            # Plot incomparable portion (MSE - different scale, show but mark as incomparable)
+            if len(epochs_incomparable) > 0:
+                axes[0].plot(epochs_incomparable, val_loss_incomparable, 
+                            color=color, linestyle=":", linewidth=1, alpha=0.3,
+                            label=f"{label} val (MSE, incomparable)" if idx == 0 else "")
+            
+            # Plot comparable portion (log_ratio)
+            if len(epochs_comparable) > 0:
+                axes[0].plot(epochs_comparable, val_loss_comparable, 
+                            color=color, linestyle="--", linewidth=2, 
+                            label=f"{label} val (log_ratio)")
+            
+            print(f"Note: {tag} - Epochs 1-{switch_epoch} validation loss uses MSE (incomparable)")
+            print(f"      Epochs {switch_epoch+1}-{len(history)} validation loss uses {loss_type} (comparable)")
+        else:
+            # No jump detected - assume all epochs are comparable
+            axes[0].plot(history["epoch"], history["val_loss"], 
+                        color=color, linestyle="--", linewidth=2, label=f"{label} val")
         
         # Plot Log MAE curves (preferred) or fallback to linear MAE
         if "val_log_mae" in history.columns:
@@ -111,12 +149,14 @@ def plot_loss_curves(run_tags: List[str], base_dir: Path, output_path: Path):
     axes[0].set_xlabel("Epoch", fontsize=12)
     axes[0].set_ylabel("Loss (Normalized Space)", fontsize=12)
     axes[0].set_title("Training & Validation Loss", fontsize=14, fontweight="bold")
+    axes[0].set_yscale("log")
     axes[0].legend(fontsize=9, loc="best")
     axes[0].grid(True, alpha=0.3)
     
     axes[1].set_xlabel("Epoch", fontsize=12)
     axes[1].set_ylabel("Validation Log MAE", fontsize=12)
     axes[1].set_title("Validation Log MAE", fontsize=14, fontweight="bold")
+    axes[1].set_yscale("log")
     axes[1].legend(fontsize=9, loc="best")
     axes[1].grid(True, alpha=0.3)
     
@@ -137,8 +177,37 @@ def plot_performance_vs_size(metrics_csv: Path, output_path: Path):
     tag_col = "dataset" if "dataset" in df.columns else "tag"
     sample_col = "total_samples" if "total_samples" in df.columns else "train_samples"
     
-    df = df[df[tag_col] != "base"]  # Exclude base model
-    df = df.sort_values(sample_col)
+    # Exclude base model and hyperparameter studies (latent dimension studies)
+    df = df[df[tag_col] != "base"]
+    # Filter out hyperparameter studies - only keep actual dataset size studies
+    # These should start with 'x' followed by numbers (e.g., x32, x160, x240)
+    df = df[df[tag_col].str.match(r'^x\d+', na=False)]
+    
+    # Prioritize optimal_retrained runs (the new standard)
+    df['config_type'] = df[tag_col].str.replace(r'^x\d+', '', regex=True)
+    df['dataset_size'] = df[tag_col].str.extract(r'x(\d+)').astype(int)
+    
+    # Check if we have optimal_retrained runs (new standard)
+    df_optimal_retrained = df[df['config_type'] == '_optimal_retrained'].copy()
+    
+    if len(df_optimal_retrained) > 0:
+        # Use optimal_retrained runs (new standard architecture)
+        # Filter to keep only: 160, 480, 800, 1120, 1440, 1760, 2080, 2400, 2720, 3040, 3360, 3680, 4000
+        # Remove: 320, 640, 960, 1280
+        keep_sizes = [160, 480, 800, 1120, 1440, 1760, 2080, 2400, 2720, 3040, 3360, 3680, 4000]
+        df_optimal_retrained = df_optimal_retrained[df_optimal_retrained['dataset_size'].isin(keep_sizes)].copy()
+        df = df_optimal_retrained.sort_values(sample_col)
+        print(f"Using optimal_retrained runs: {df[tag_col].tolist()}")
+    elif len(df[df['config_type'] == '_consistent']) > 0:
+        # Fallback to consistent runs
+        df_consistent = df[df['config_type'] == '_consistent'].copy()
+        df = df_consistent.sort_values(sample_col)
+        print(f"Using consistent architecture runs: {df[tag_col].tolist()}")
+    else:
+        # Fallback to _optimal if no optimal_retrained runs
+        df_optimal = df[df['config_type'] == '_optimal'].copy()
+        df = df_optimal.sort_values(sample_col)
+        print(f"Using '_optimal' configuration (no optimal_retrained runs found): {df[tag_col].tolist()}")
     
     fig, axes = plt.subplots(2, 2, figsize=(14, 10))
     
@@ -153,29 +222,30 @@ def plot_performance_vs_size(metrics_csv: Path, output_path: Path):
         marker = "o" if loss_type == "huber" or loss_type == "default" else "s"
         label = f"{loss_type}" if loss_type != "default" else "huber"
         
-        # Test Loss
-        axes[0, 0].plot(group[sample_col] / 1000, group["test_loss"], 
-                       marker=marker, color=color, linewidth=2, markersize=8, label=label)
+        # Test Loss - use log scale for consistency
+        valid_test = ~group["test_loss"].isna()
+        if valid_test.sum() > 0:
+            axes[0, 0].semilogy(group[valid_test][sample_col] / 1000, group[valid_test]["test_loss"], 
+                               marker=marker, color=color, linewidth=2, markersize=8, label=label)
         axes[0, 0].set_xlabel("Training Samples (×1000)", fontsize=12)
-        axes[0, 0].set_ylabel("Test Loss (Normalized)", fontsize=12)
+        axes[0, 0].set_ylabel("Test Loss (log_ratio)", fontsize=12)
+        axes[0, 1].set_ylabel("Log MAE (dex)", fontsize=12)
         axes[0, 0].set_title("Test Loss vs Dataset Size", fontsize=14, fontweight="bold")
         axes[0, 0].grid(True, alpha=0.3)
         axes[0, 0].legend()
         
-        # Log MAE (if exists)
+        # Log MAE - use log scale for consistency
         if "log_mae" in group.columns:
-            # Filter out nan values
             valid = ~group["log_mae"].isna()
             if valid.sum() > 0:
-                axes[0, 1].plot(group[valid][sample_col] / 1000, group[valid]["log_mae"], 
-                               marker=marker, color=color, linewidth=2, markersize=8, label=label)
+                axes[0, 1].semilogy(group[valid][sample_col] / 1000, group[valid]["log_mae"], 
+                                   marker=marker, color=color, linewidth=2, markersize=8, label=label)
         axes[0, 1].set_xlabel("Training Samples (×1000)", fontsize=12)
-        axes[0, 1].set_ylabel("Log MAE", fontsize=12)
         axes[0, 1].set_title("Log MAE vs Dataset Size", fontsize=14, fontweight="bold")
         axes[0, 1].grid(True, alpha=0.3)
         axes[0, 1].legend()
         
-        # Log R²
+        # Log R² - linear scale (already normalized 0-1)
         if "log_r2" in group.columns:
             valid = ~group["log_r2"].isna()
             if valid.sum() > 0:
@@ -187,11 +257,13 @@ def plot_performance_vs_size(metrics_csv: Path, output_path: Path):
         axes[1, 0].grid(True, alpha=0.3)
         axes[1, 0].legend()
         
-        # Val Loss
-        axes[1, 1].plot(group[sample_col] / 1000, group["val_loss"], 
-                       marker=marker, color=color, linewidth=2, markersize=8, label=label)
+        # Val Loss - use log scale for consistency
+        valid_val = ~group["val_loss"].isna()
+        if valid_val.sum() > 0:
+            axes[1, 1].semilogy(group[valid_val][sample_col] / 1000, group[valid_val]["val_loss"], 
+                               marker=marker, color=color, linewidth=2, markersize=8, label=label)
         axes[1, 1].set_xlabel("Training Samples (×1000)", fontsize=12)
-        axes[1, 1].set_ylabel("Validation Loss", fontsize=12)
+        axes[1, 1].set_ylabel("Validation Loss (log_ratio)", fontsize=12)
         axes[1, 1].set_title("Validation Loss vs Dataset Size", fontsize=14, fontweight="bold")
         axes[1, 1].grid(True, alpha=0.3)
         axes[1, 1].legend()
@@ -222,28 +294,41 @@ def plot_model_size_comparison(metrics_csv: Path, output_path: Path):
     x = np.arange(len(recent))
     width = 0.6
     
-    # Test Loss
+    # Filter to optimal_retrained runs if available
+    # Keep only: 160, 480, 800, 1120, 1440, 1760, 2080, 2400, 2720, 3040
+    # Remove: 320, 640, 960, 1280
+    df_optimal = recent[recent[tag_col].str.contains("_optimal_retrained", na=False)].copy()
+    if len(df_optimal) > 0:
+        df_optimal['dataset_size'] = df_optimal[tag_col].str.extract(r'x(\d+)').astype(float)
+        keep_sizes = [160, 480, 800, 1120, 1440, 1760, 2080, 2400, 2720, 3040, 3360, 3680, 4000]
+        df_optimal = df_optimal[df_optimal['dataset_size'].isin(keep_sizes)].copy()
+    if not df_optimal.empty:
+        recent = df_optimal.sort_values(sample_col)
+    
+    x = np.arange(len(recent))
+    
+    # Test Loss - units: log_ratio
     axes[0].bar(x, recent["test_loss"], width, color=COLORS[0], alpha=0.8)
-    axes[0].set_ylabel("Test Loss (Normalized)", fontsize=12)
+    axes[0].set_ylabel("Test Loss (log_ratio)", fontsize=12)
     axes[0].set_title("Test Loss Comparison", fontsize=14, fontweight="bold")
     axes[0].set_xticks(x)
     axes[0].set_xticklabels(recent[tag_col], rotation=45, ha="right")
     axes[0].grid(axis="y", alpha=0.3)
     
-    # Val Loss
+    # Val Loss - units: log_ratio
     axes[1].bar(x, recent["val_loss"], width, color=COLORS[1], alpha=0.8)
-    axes[1].set_ylabel("Validation Loss (Normalized)", fontsize=12)
+    axes[1].set_ylabel("Validation Loss (log_ratio)", fontsize=12)
     axes[1].set_title("Validation Loss Comparison", fontsize=14, fontweight="bold")
     axes[1].set_xticks(x)
     axes[1].set_xticklabels(recent[tag_col], rotation=45, ha="right")
     axes[1].grid(axis="y", alpha=0.3)
     
-    # Log MAE (if exists)
+    # Log MAE - units: dex
     if "log_mae" in recent.columns:
         valid = ~recent["log_mae"].isna()
         if valid.sum() > 0:
             axes[2].bar(x[valid], recent[valid]["log_mae"], width, color=COLORS[2], alpha=0.8)
-    axes[2].set_ylabel("Log MAE", fontsize=12)
+    axes[2].set_ylabel("Log MAE (dex)", fontsize=12)
     axes[2].set_title("Log MAE Comparison", fontsize=14, fontweight="bold")
     axes[2].set_xticks(x)
     axes[2].set_xticklabels(recent[tag_col], rotation=45, ha="right")
@@ -257,8 +342,16 @@ def plot_model_size_comparison(metrics_csv: Path, output_path: Path):
 
 def main():
     parser = argparse.ArgumentParser(description="Generate training analysis plots")
-    parser.add_argument("--runs", nargs="+", default=["x160_static_32"],
-                        help="Run tags to plot loss curves for (default: x160_static_32)")
+    # Default to optimal_retrained runs
+    parser.add_argument("--runs", nargs="+", 
+                        default=["x160_optimal_retrained", "x480_optimal_retrained", 
+                                "x800_optimal_retrained", "x1120_optimal_retrained", 
+                                "x1440_optimal_retrained", "x1760_optimal_retrained",
+                                "x2080_optimal_retrained", "x2400_optimal_retrained",
+                                "x2720_optimal_retrained", "x3040_optimal_retrained",
+                                "x3360_optimal_retrained", "x3680_optimal_retrained",
+                                "x4000_optimal_retrained"],
+                        help="Run tags to plot loss curves for")
     parser.add_argument("--base-dir", type=Path, 
                         default=Path(__file__).resolve().parent.parent / "results" / "runs",
                         help="Base directory containing run folders")
@@ -274,6 +367,7 @@ def main():
     print("="*80)
     print("TRAINING ANALYSIS PLOTS")
     print("="*80)
+    print(f"Using runs: {', '.join(args.runs)}")
     
     # 1. Loss curves for specified runs
     print(f"\n1. Generating loss curves for: {', '.join(args.runs)}")
@@ -290,6 +384,10 @@ def main():
     print("\n" + "="*80)
     print("✅ All plots generated successfully!")
     print("="*80)
+    print(f"\nPlots saved to: {args.output_dir}")
+    print("  - loss_curves.png")
+    print("  - performance_vs_size.png")
+    print("  - model_comparison.png")
 
 
 if __name__ == "__main__":

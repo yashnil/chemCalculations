@@ -364,12 +364,19 @@ class EvalResult:
     mse: float
     mae: float
     log_mae: float = 0.0
+    log_r2: float = 0.0
 
 
-def evaluate(model: FlowMapAutoencoder, loader: DataLoader, device: torch.device) -> EvalResult:
+def evaluate(model: FlowMapAutoencoder, loader: DataLoader, device: torch.device, criterion: Optional[nn.Module] = None) -> EvalResult:
     model.eval()
-    criterion = nn.MSELoss()
+    # Use provided criterion (same as training) or fallback to MSE for compatibility
+    if criterion is None:
+        criterion = nn.MSELoss()
     losses, mses, maes, log_maes = [], [], [], []
+    
+    # Collect all predictions and targets for R² computation
+    all_y_log = []
+    all_pred_log = []
 
     with torch.no_grad():
         for batch_data in loader:
@@ -388,6 +395,7 @@ def evaluate(model: FlowMapAutoencoder, loader: DataLoader, device: torch.device
             dt = torch.ones((g.shape[0], 1), device=device, dtype=g.dtype)
             pred = model(y0, dt, g)[:, 0, :]
 
+            # Use the same loss function as training (works in normalized space)
             loss = criterion(pred, y)
             
             # Convert to linear space for metrics
@@ -400,21 +408,36 @@ def evaluate(model: FlowMapAutoencoder, loader: DataLoader, device: torch.device
             mse = criterion(pred_lin, y_lin)
             mae = torch.mean((pred_lin - y_lin).abs())
             
-            # Compute log MAE
+            # Compute log MAE and collect for R²
             y_log = torch.log10(torch.clamp(y_lin, min=1e-30))
             pred_log = torch.log10(torch.clamp(pred_lin, min=1e-30))
             log_mae = torch.mean((pred_log - y_log).abs())
+            
+            # Collect for R² computation
+            all_y_log.append(y_log.cpu().numpy())
+            all_pred_log.append(pred_log.cpu().numpy())
 
             losses.append(loss.item())
             mses.append(mse.item())
             maes.append(mae.item())
             log_maes.append(log_mae.item())
+    
+    # Compute log R²
+    try:
+        from sklearn.metrics import r2_score
+        y_log_all = np.concatenate(all_y_log, axis=0)
+        pred_log_all = np.concatenate(all_pred_log, axis=0)
+        # Flatten for R² computation (treat all species together)
+        log_r2 = float(r2_score(y_log_all.flatten(), pred_log_all.flatten()))
+    except:
+        log_r2 = 0.0
 
     return EvalResult(
         loss=float(np.mean(losses)),
         mse=float(np.mean(mses)),
         mae=float(np.mean(maes)),
         log_mae=float(np.mean(log_maes)),
+        log_r2=log_r2,
     )
 
 
@@ -775,7 +798,7 @@ def main() -> None:
             ep_losses.append(loss.item())
 
         train_loss = float(np.mean(ep_losses))
-        val_res = evaluate(model, val_loader, device)
+        val_res = evaluate(model, val_loader, device, criterion)
         scheduler.step(val_res.loss)
         
         # Record history
@@ -828,12 +851,14 @@ def main() -> None:
     log.info("Training complete. Loading best checkpoint...")
     checkpoint = torch.load(best_path, map_location=device)
     model.load_state_dict(checkpoint["model_state"])
-    test_res = evaluate(model, test_loader, device)
+    test_res = evaluate(model, test_loader, device, criterion)
     log.info(
-        "Test metrics | loss=%.4f | MSE=%.4e | MAE=%.4e",
+        "Test metrics | loss=%.4f | MSE=%.4e | MAE=%.4e | Log MAE=%.4f | Log R²=%.6f",
         test_res.loss,
         test_res.mse,
         test_res.mae,
+        test_res.log_mae,
+        test_res.log_r2,
     )
     
     # Save loss history to CSV
@@ -866,6 +891,8 @@ def main() -> None:
         "test_loss": test_res.loss,
         "test_mse_linear": test_res.mse,
         "test_mae_linear": test_res.mae,
+        "test_log_mae": test_res.log_mae,
+        "test_log_r2": test_res.log_r2,
         "input_cols": input_cols,
         "target_cols": target_cols,
         "weights": weights.tolist(),
