@@ -19,19 +19,12 @@ import pandas as pd
 # Consistent run tags
 # Use optimal_retrained runs (the new standard - constant 320K increments)
 OPTIMAL_RETRAINED_RUNS = [
-    "x160_optimal_retrained",
-    "x480_optimal_retrained",
     "x800_optimal_retrained",
-    "x1120_optimal_retrained",
-    "x1440_optimal_retrained",
-    "x1760_optimal_retrained",
-    "x2080_optimal_retrained",
+    "x1600_optimal_retrained",
     "x2400_optimal_retrained",
-    "x2720_optimal_retrained",
-    "x3040_optimal_retrained",
-    "x3360_optimal_retrained",
-    "x3680_optimal_retrained",
+    "x3200_optimal_retrained",
     "x4000_optimal_retrained",
+    "x4800_optimal_retrained",
 ]
 
 # Fallback to consistent runs

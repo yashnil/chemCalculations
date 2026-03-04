@@ -32,19 +32,12 @@ COMPARISON_CSV = PLOTS_DIR / "comparison_metrics.csv"
 
 # Optimal retrained runs
 OPTIMAL_RETRAINED_RUNS = [
-    "x160_optimal_retrained",
-    "x480_optimal_retrained",
     "x800_optimal_retrained",
-    "x1120_optimal_retrained",
-    "x1440_optimal_retrained",
-    "x1760_optimal_retrained",
-    "x2080_optimal_retrained",
+    "x1600_optimal_retrained",
     "x2400_optimal_retrained",
-    "x2720_optimal_retrained",
-    "x3040_optimal_retrained",
-    "x3360_optimal_retrained",
-    "x3680_optimal_retrained",
+    "x3200_optimal_retrained",
     "x4000_optimal_retrained",
+    "x4800_optimal_retrained",
 ]
 
 # Add src/ to path
@@ -92,11 +85,17 @@ def load_summary(run_tag: str) -> dict | None:
         return json.load(f)
 
 
-def plot_loss_curves_all_sizes(output_path: Path):
-    """Plot training and validation loss curves for all optimal_retrained runs."""
-    fig, axes = plt.subplots(2, 2, figsize=(16, 12))
+def plot_loss_curves_all_sizes(output_path_loss: Path, output_path_log_mae: Path):
+    """Plot training and validation loss curves for all optimal_retrained runs.
     
+    Creates two separate plots:
+    1. Training and validation loss vs epochs
+    2. Validation log MAE vs epochs
+    """
     colors = plt.cm.tab10(np.linspace(0, 1, len(OPTIMAL_RETRAINED_RUNS)))
+    
+    # Plot 1: Training & Validation Loss
+    fig1, ax1 = plt.subplots(figsize=(12, 8))
     
     for idx, run_tag in enumerate(OPTIMAL_RETRAINED_RUNS):
         history = load_loss_history(run_tag)
@@ -106,55 +105,50 @@ def plot_loss_curves_all_sizes(output_path: Path):
         size = run_tag.split('_')[0].replace('x', '')
         color = colors[idx]
         
-        # Plot 1: Training & Validation Loss
-        axes[0, 0].plot(history["epoch"], history["train_loss"], 
-                       color=color, linestyle="-", linewidth=2, 
-                       label=f"x{size}K train")
-        axes[0, 0].plot(history["epoch"], history["val_loss"], 
-                       color=color, linestyle="--", linewidth=2, 
-                       label=f"x{size}K val")
-        axes[0, 0].set_xlabel("Epoch", fontsize=12)
-        axes[0, 0].set_ylabel("Loss (log_ratio)", fontsize=12)
-        axes[0, 0].set_title("Training & Validation Loss", fontsize=14, fontweight="bold")
-        axes[0, 0].set_yscale("log")
-        axes[0, 0].grid(True, alpha=0.3)
-        axes[0, 0].legend()
-        
-        # Plot 2: Log MAE (if available)
-        if "val_log_mae" in history.columns:
-            axes[0, 1].plot(history["epoch"], history["val_log_mae"], 
-                           color=color, linewidth=2, label=f"x{size}K")
-        axes[0, 1].set_xlabel("Epoch", fontsize=12)
-        axes[0, 1].set_ylabel("Log MAE (dex)", fontsize=12)
-        axes[0, 1].set_title("Validation Log MAE", fontsize=14, fontweight="bold")
-        axes[0, 1].set_yscale("log")
-        axes[0, 1].grid(True, alpha=0.3)
-        axes[0, 1].legend()
-        
-        # Plot 3: Log R² (if available)
-        if "val_log_r2" in history.columns:
-            axes[1, 0].plot(history["epoch"], history["val_log_r2"], 
-                           color=color, linewidth=2, label=f"x{size}K")
-        axes[1, 0].set_xlabel("Epoch", fontsize=12)
-        axes[1, 0].set_ylabel("Log R²", fontsize=12)
-        axes[1, 0].set_title("Validation Log R²", fontsize=14, fontweight="bold")
-        axes[1, 0].grid(True, alpha=0.3)
-        axes[1, 0].legend()
-        
-        # Plot 4: Learning Rate (if available)
-        if "learning_rate" in history.columns:
-            axes[1, 1].plot(history["epoch"], history["learning_rate"], 
-                           color=color, linewidth=2, label=f"x{size}K")
-        axes[1, 1].set_xlabel("Epoch", fontsize=12)
-        axes[1, 1].set_ylabel("Learning Rate", fontsize=12)
-        axes[1, 1].set_title("Learning Rate Schedule", fontsize=14, fontweight="bold")
-        axes[1, 1].set_yscale("log")
-        axes[1, 1].grid(True, alpha=0.3)
-        axes[1, 1].legend()
+        ax1.plot(history["epoch"], history["train_loss"], 
+                color=color, linestyle="-", linewidth=2, 
+                label=f"x{size}K train", alpha=0.8)
+        ax1.plot(history["epoch"], history["val_loss"], 
+                color=color, linestyle="--", linewidth=2, 
+                label=f"x{size}K val", alpha=0.8)
+    
+    ax1.set_xlabel("Epoch", fontsize=14)
+    ax1.set_ylabel("Loss (log_ratio)", fontsize=14)
+    ax1.set_title("Training & Validation Loss", fontsize=16, fontweight="bold")
+    ax1.set_yscale("log")
+    ax1.grid(True, alpha=0.3)
+    ax1.legend(fontsize=10, ncol=2, loc='best')
     
     plt.tight_layout()
-    plt.savefig(output_path, dpi=150, bbox_inches="tight")
-    print(f"✅ Saved loss curves to {output_path}")
+    plt.savefig(output_path_loss, dpi=150, bbox_inches="tight")
+    print(f"✅ Saved training/validation loss curves to {output_path_loss}")
+    plt.close()
+    
+    # Plot 2: Validation Log MAE
+    fig2, ax2 = plt.subplots(figsize=(12, 8))
+    
+    for idx, run_tag in enumerate(OPTIMAL_RETRAINED_RUNS):
+        history = load_loss_history(run_tag)
+        if history is None:
+            continue
+        
+        size = run_tag.split('_')[0].replace('x', '')
+        color = colors[idx]
+        
+        if "val_log_mae" in history.columns:
+            ax2.plot(history["epoch"], history["val_log_mae"], 
+                    color=color, linewidth=2, label=f"x{size}K", alpha=0.8)
+    
+    ax2.set_xlabel("Epoch", fontsize=14)
+    ax2.set_ylabel("Log MAE (dex)", fontsize=14)
+    ax2.set_title("Validation Log MAE", fontsize=16, fontweight="bold")
+    ax2.set_yscale("log")
+    ax2.grid(True, alpha=0.3)
+    ax2.legend(fontsize=10, ncol=2, loc='best')
+    
+    plt.tight_layout()
+    plt.savefig(output_path_log_mae, dpi=150, bbox_inches="tight")
+    print(f"✅ Saved validation log MAE curves to {output_path_log_mae}")
     plt.close()
 
 
@@ -308,14 +302,21 @@ def plot_scatter_optimal_model(output_path: Path, run_tag: str = "x800_optimal_r
     # Create scatter plot
     fig, ax = plt.subplots(figsize=(10, 10))
     
-    # Use density coloring if possible
+    # Subsample for performance if too many points
+    MAX_SCATTER = 200_000
+    if len(x_plot) > MAX_SCATTER:
+        rng = np.random.default_rng(42)
+        idx = rng.choice(len(x_plot), MAX_SCATTER, replace=False)
+        x_plot, y_plot = x_plot[idx], y_plot[idx]
+        log_x, log_y = log_x[idx], log_y[idx]
+    
     try:
         from scipy.stats import gaussian_kde
         dens = gaussian_kde(np.vstack([log_x, log_y]))(np.vstack([log_x, log_y]))
         order = dens.argsort()
         ax.scatter(x_plot[order], y_plot[order], c=dens[order], 
                   cmap="viridis", s=1, alpha=0.6, linewidths=0)
-    except:
+    except Exception:
         ax.scatter(x_plot, y_plot, s=1, alpha=0.3, c='steelblue')
     
     # Add 1:1 line
@@ -419,9 +420,12 @@ def main():
     print(f"Output directory: {args.output_dir}")
     print()
     
-    # 1. Loss curves for all sizes
+    # 1. Loss curves for all sizes (split into two plots)
     print("1. Generating loss curves for all sizes...")
-    plot_loss_curves_all_sizes(args.output_dir / "loss_curves_full_suite.png")
+    plot_loss_curves_all_sizes(
+        args.output_dir / "loss_curves_full_suite.png",
+        args.output_dir / "log_mae_curves_full_suite.png"
+    )
     
     # 2. Performance vs dataset size
     print("\n2. Generating performance vs dataset size plot...")
@@ -439,7 +443,8 @@ def main():
     print("✅ ALL PLOTS GENERATED!")
     print("="*80)
     print(f"\nPlots saved to: {args.output_dir}")
-    print("  - loss_curves_full_suite.png")
+    print("  - loss_curves_full_suite.png (training & validation loss)")
+    print("  - log_mae_curves_full_suite.png (validation log MAE)")
     print("  - performance_vs_size_full_suite.png")
     print("  - scatter_optimal_model.png")
     print("  - model_comparison_bar.png")

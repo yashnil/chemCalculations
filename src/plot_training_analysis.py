@@ -191,10 +191,7 @@ def plot_performance_vs_size(metrics_csv: Path, output_path: Path):
     df_optimal_retrained = df[df['config_type'] == '_optimal_retrained'].copy()
     
     if len(df_optimal_retrained) > 0:
-        # Use optimal_retrained runs (new standard architecture)
-        # Filter to keep only: 160, 480, 800, 1120, 1440, 1760, 2080, 2400, 2720, 3040, 3360, 3680, 4000
-        # Remove: 320, 640, 960, 1280
-        keep_sizes = [160, 480, 800, 1120, 1440, 1760, 2080, 2400, 2720, 3040, 3360, 3680, 4000]
+        keep_sizes = [800, 1600, 2400, 3200, 4000, 4800]
         df_optimal_retrained = df_optimal_retrained[df_optimal_retrained['dataset_size'].isin(keep_sizes)].copy()
         df = df_optimal_retrained.sort_values(sample_col)
         print(f"Using optimal_retrained runs: {df[tag_col].tolist()}")
@@ -294,13 +291,10 @@ def plot_model_size_comparison(metrics_csv: Path, output_path: Path):
     x = np.arange(len(recent))
     width = 0.6
     
-    # Filter to optimal_retrained runs if available
-    # Keep only: 160, 480, 800, 1120, 1440, 1760, 2080, 2400, 2720, 3040
-    # Remove: 320, 640, 960, 1280
     df_optimal = recent[recent[tag_col].str.contains("_optimal_retrained", na=False)].copy()
     if len(df_optimal) > 0:
         df_optimal['dataset_size'] = df_optimal[tag_col].str.extract(r'x(\d+)').astype(float)
-        keep_sizes = [160, 480, 800, 1120, 1440, 1760, 2080, 2400, 2720, 3040, 3360, 3680, 4000]
+        keep_sizes = [800, 1600, 2400, 3200, 4000, 4800]
         df_optimal = df_optimal[df_optimal['dataset_size'].isin(keep_sizes)].copy()
     if not df_optimal.empty:
         recent = df_optimal.sort_values(sample_col)
@@ -344,13 +338,9 @@ def main():
     parser = argparse.ArgumentParser(description="Generate training analysis plots")
     # Default to optimal_retrained runs
     parser.add_argument("--runs", nargs="+", 
-                        default=["x160_optimal_retrained", "x480_optimal_retrained", 
-                                "x800_optimal_retrained", "x1120_optimal_retrained", 
-                                "x1440_optimal_retrained", "x1760_optimal_retrained",
-                                "x2080_optimal_retrained", "x2400_optimal_retrained",
-                                "x2720_optimal_retrained", "x3040_optimal_retrained",
-                                "x3360_optimal_retrained", "x3680_optimal_retrained",
-                                "x4000_optimal_retrained"],
+                        default=["x800_optimal_retrained", "x1600_optimal_retrained",
+                                "x2400_optimal_retrained", "x3200_optimal_retrained",
+                                "x4000_optimal_retrained", "x4800_optimal_retrained"],
                         help="Run tags to plot loss curves for")
     parser.add_argument("--base-dir", type=Path, 
                         default=Path(__file__).resolve().parent.parent / "results" / "runs",

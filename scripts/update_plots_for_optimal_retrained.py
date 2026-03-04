@@ -22,19 +22,12 @@ COMPARISON_CSV = BASE_DIR / "plots" / "comparison_metrics.csv"
 
 # Optimal retrained runs (the new standard - constant 320K increments)
 OPTIMAL_RETRAINED_RUNS = [
-    ("x160_optimal_retrained", 160000),
-    ("x480_optimal_retrained", 480000),
     ("x800_optimal_retrained", 800000),
-    ("x1120_optimal_retrained", 1120000),
-    ("x1440_optimal_retrained", 1440000),
-    ("x1760_optimal_retrained", 1760000),
-    ("x2080_optimal_retrained", 2080000),
+    ("x1600_optimal_retrained", 1600000),
     ("x2400_optimal_retrained", 2400000),
-    ("x2720_optimal_retrained", 2720000),
-    ("x3040_optimal_retrained", 3040000),
-    ("x3360_optimal_retrained", 3360000),
-    ("x3680_optimal_retrained", 3680000),
+    ("x3200_optimal_retrained", 3200000),
     ("x4000_optimal_retrained", 4000000),
+    ("x4800_optimal_retrained", 4800000),
 ]
 
 
@@ -196,10 +189,8 @@ def update_comparison_metrics():
     
     # Filter to keep only optimal_retrained runs (remove old inconsistent ones)
     print("\n📊 Filtering to optimal_retrained runs...")
-    # Keep only: 160, 480, 800, 1120, 1440, 1760, 2080, 2400, 2720, 3040, 3360, 3680, 4000
-    # Remove: 320, 640, 960, 1280
-    keep_tags = {f"x{size}_optimal_retrained" for size in [160, 480, 800, 1120, 1440, 1760, 2080, 2400, 2720, 3040, 3360, 3680, 4000]}
-    remove_tags = {f"x{size}_optimal_retrained" for size in [320, 640, 960, 1280]}
+    keep_tags = {f"x{size}_optimal_retrained" for size in [800, 1600, 2400, 3200, 4000, 4800]}
+    remove_tags = set()  # Remove everything not in keep_tags
     
     filtered_rows = []
     for row in existing_rows:

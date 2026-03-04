@@ -21,11 +21,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 RUNS_DIR = BASE_DIR / "results" / "runs"
 
 OPTIMAL_RETRAINED_RUNS = [
-    ("x160_optimal_retrained", 160000),
-    ("x320_optimal_retrained", 320000),
-    ("x480_optimal_retrained", 480000),
-    ("x640_optimal_retrained", 640000),
     ("x800_optimal_retrained", 800000),
+    ("x1600_optimal_retrained", 1600000),
+    ("x2400_optimal_retrained", 2400000),
+    ("x3200_optimal_retrained", 3200000),
+    ("x4000_optimal_retrained", 4000000),
+    ("x4800_optimal_retrained", 4800000),
 ]
 
 TARGET_LOG_SCALE = 30.0

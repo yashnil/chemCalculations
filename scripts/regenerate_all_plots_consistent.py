@@ -4,7 +4,7 @@ regenerate_all_plots_consistent.py
 ===================================
 
 Regenerate ALL plots with consistent units and optimal_retrained runs.
-Ensures all plots use the same dataset sizes (160, 320, 480, 640, 800K) and consistent units.
+Ensures all plots use the 800K-increment study sizes (800, 1600, 2400, 3200, 4000, 4800K).
 """
 
 import subprocess
@@ -19,7 +19,7 @@ def regenerate_all_plots():
     print("="*80)
     print("REGENERATING ALL PLOTS WITH CONSISTENT UNITS")
     print("="*80)
-    print("Using optimal_retrained runs: 160, 320, 480, 640, 800K")
+    print("Using optimal_retrained runs: 800, 1600, 2400, 3200, 4000, 4800K")
     print()
     
     plots_to_generate = [

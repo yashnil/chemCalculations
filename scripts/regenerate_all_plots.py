@@ -18,12 +18,14 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 RUNS_DIR = BASE_DIR / "results" / "runs"
 COMPARISON_CSV = BASE_DIR / "plots" / "comparison_metrics.csv"
 
-# Consistent architecture runs (these are the new standard)
+# 800K-increment study runs
 CONSISTENT_RUNS = [
-    ("x160_static_32_consistent", 160000),
-    ("x240_static_32_consistent", 240000),
-    ("x480_static_32_consistent", 480000),
-    ("x640_static_32_consistent", 640000),
+    ("x800_optimal_retrained", 800000),
+    ("x1600_optimal_retrained", 1600000),
+    ("x2400_optimal_retrained", 2400000),
+    ("x3200_optimal_retrained", 3200000),
+    ("x4000_optimal_retrained", 4000000),
+    ("x4800_optimal_retrained", 4800000),
 ]
 
 
