@@ -193,6 +193,27 @@ We replace the iterative FastChem solver with a **trained neural network** that:
 - **Log-ratio loss**: Direct log-space error minimization across 30 orders of magnitude
 - **Optimal hyperparameters**: latent_dim=192, width=512, layers=3 determined via systematic studies
 
+### Independent Validation (Out-of-Distribution)
+
+To verify generalization beyond the training distribution, the best model (x4800) was validated against FastChem on **320 completely independent conditions** across 5 physically motivated scenarios:
+
+| Scenario | Conditions | Log MAE (dex) | Log R² | Max Error (dex) |
+|----------|-----------|---------------|--------|-----------------|
+| Hot Jupiter T-P profile | 60 | 0.274 | 0.9985 | 1.76 |
+| Cool dwarf T-P profile | 50 | 0.063 | 0.9999 | 0.65 |
+| Systematic T-P grid (solar) | 120 | 0.097 | 0.9996 | 2.08 |
+| C/O ratio sweep (0.1–2.0) | 40 | 0.161 | 0.9992 | 2.99 |
+| Metallicity sweep (0.01–100× solar) | 50 | 0.064 | 0.9998 | 2.24 |
+| **All combined** | **320** | **0.127** | **0.9994** | **2.99** |
+
+**Key findings**:
+- Overall Log R² = 0.9994 on independent data — the model generalizes well
+- Performance is best on conditions within the training parameter space (cool dwarf, metallicity)
+- The hot Jupiter profile shows higher error (0.27 dex) due to low-pressure conditions (10⁻⁶ bar) that are sparse in training data
+- Maximum errors occur at extreme compositions (C/O > 1.5, [M/H] > +1.5)
+
+**Plots**: See `plots/independent_validation/` for parity plots, atmospheric profiles, and sweep comparisons.
+
 ### Hyperparameter Optimization Studies
 
 We conducted three systematic hyperparameter studies to identify optimal model configuration:
@@ -261,7 +282,7 @@ We conducted three systematic hyperparameter studies to identify optimal model c
 - Static ordering provides better consistency and reproducibility
 - 32 species optimal balance between coverage and model complexity
 
-**Full results**: See `plots/comparison_metrics.csv` and `STATIC_ORDERING_IMPLEMENTATION.md`
+**Full results**: See `plots/comparison_metrics.csv`
 
 ### Comparison: FastChem vs ML Emulator
 
@@ -288,38 +309,39 @@ chemCalculations/
 │   ├── train_autoencoder.py       # Main training script
 │   ├── autoencoder_model.py       # FlowMapAutoencoder architecture
 │   ├── diagnostics.py             # Comprehensive diagnostic suite
-│   ├── plot.py                    # Generate parity plots
 │   ├── make_comparison_metrics.py # Collect metrics across dataset sizes
-│   ├── plot_*.py                  # Plotting utilities for studies
-│   └── test_*.py                  # Hyperparameter study scripts
+│   ├── plot_full_suite.py         # Comprehensive plot generation
+│   ├── plot_comprehensive_analysis.py  # Asymptote analysis plots
+│   ├── plot_training_analysis.py  # Training curves and performance
+│   ├── plot_latent_dim_results.py # Latent dimension study plots
+│   └── plot_layer_width_results.py # Layer width study plots
 │
-├── results/                        # Training runs and outputs
-│   └── runs/                      # Model run directories
-│       ├── runs_autoencoder_x800_optimal_retrained/
-│       ├── runs_autoencoder_x1600_optimal_retrained/
-│       ├── runs_autoencoder_x2400_optimal_retrained/
-│       ├── runs_autoencoder_x3200_optimal_retrained/
-│       ├── runs_autoencoder_x4000_optimal_retrained/
-│       └── runs_autoencoder_x4800_optimal_retrained/  # Best model
+├── results/runs/                   # Trained models (800K-increment study)
+│   ├── runs_autoencoder_x800_optimal_retrained/
+│   ├── runs_autoencoder_x1600_optimal_retrained/
+│   ├── runs_autoencoder_x2400_optimal_retrained/
+│   ├── runs_autoencoder_x3200_optimal_retrained/
+│   ├── runs_autoencoder_x4000_optimal_retrained/
+│   └── runs_autoencoder_x4800_optimal_retrained/  # Best model
 │
 ├── plots/                          # Visualization outputs
 │   ├── comparison_metrics.csv     # Performance metrics for all models
-│   ├── hyperparameters_table.csv  # Complete hyperparameter table
-│   ├── *.png                      # Study plots and visualizations
-│   └── *.csv                      # Study results
+│   ├── independent_validation/    # Independent validation results
+│   └── *.png                      # Study plots and visualizations
 │
 ├── data/                           # Datasets and thermodynamic data
 │   ├── datasets/                  # Training datasets (excluded from Git)
 │   └── fastchem_data/             # FastChem logK and element abundance files
 │
+├── configs/                        # Training configurations (JSON)
+│
 ├── scripts/                        # Utility scripts
-│   ├── data_generation/          # FastChem job generation and merging
-│   ├── retrain_all_datasets.py   # Automated retraining across dataset sizes
-│   └── clean_dataset.py          # Data preprocessing utilities
+│   ├── data_generation/           # FastChem job generation and merging
+│   ├── independent_validation.py  # Independent validation vs FastChem
+│   ├── benchmark_fastchem_speed.py # Speed comparison benchmark
+│   └── setup_fastchem_env.sh      # FastChem environment setup
 │
-├── history/                        # Historical versions (archived)
-│   └── graveyard/                # Previous versions (v1-v10, NEW_VERS)
-│
+├── requirements.txt                # Python dependencies
 └── README.md                       # This file
 ```
 
@@ -330,34 +352,38 @@ chemCalculations/
 ### Prerequisites
 
 ```bash
-pip install torch numpy pandas scikit-learn matplotlib scipy
+pip install -r requirements.txt
 ```
 
 ### Training a Model
 
 ```bash
-# Train the model
-cd src
-python train_autoencoder.py  # ~2-3 hours (200 epochs, 4800K samples)
-# Note: Set CSV_PATH environment variable to point to your dataset
+# Train with a config file
+python src/train_autoencoder.py \
+    --config configs/x4800_optimal_retrained.json \
+    --loss-type log_ratio \
+    --run-dir results/runs/runs_autoencoder_x4800_optimal_retrained
 
-# Generate validation plots
-python plot.py               # Creates parity plot
-python diagnostics.py        # Creates comprehensive diagnostic plots
+# Generate diagnostic plots for a trained model
+CSV_PATH=data/datasets/all_gas_fastchem_x4800.csv \
+BEST_MODULE=results/runs/runs_autoencoder_x4800_optimal_retrained/best_model.py \
+OUT_DIR=results/runs/runs_autoencoder_x4800_optimal_retrained/diagnostics \
+python src/diagnostics.py
 ```
 
 ### Using the Trained Model
 
 ```python
 import sys
-sys.path.append('models/best_model')
+sys.path.append('results/runs/runs_autoencoder_x4800_optimal_retrained')
 
-from best_model import load_model, normalize_inputs, forward_autoencoder
+from best_model import load_model, normalize_inputs, forward_autoencoder, denormalize_targets, TARGET_COLS
 import pandas as pd
 import torch
 
 # Load model
 model = load_model(device='cpu')
+model.eval()
 
 # Prepare input (T, P, elemental abundances in dex scale)
 df_input = pd.DataFrame({
@@ -370,32 +396,16 @@ df_input = pd.DataFrame({
     'abund_S_dex': [7.12],     # S abundance (solar)
 })
 
-# Normalize and predict
+# Normalize, predict, denormalize
 X = normalize_inputs(df_input)
 with torch.no_grad():
-    y_scaled = forward_autoencoder(model, X).numpy()
+    y_scaled = forward_autoencoder(model, X).cpu().numpy()
+y_linear = denormalize_targets(y_scaled)
 
-# De-normalize to linear space
-from best_model import scale_targets_train_to_linear_torch
-y_linear = scale_targets_train_to_linear_torch(torch.tensor(y_scaled)).numpy()
-
-print("Predicted abundances for 21 species:")
-print(y_linear)  # Returns abundances for: e-, N2, O2, H2, S2, C5, H, O, H2O, etc.
-```
-
-### Running Hyperparameter Studies
-
-```bash
-cd src
-
-# Latent dimension study
-python test_latent_dim.py --latent-dims 64 96 128 160 192 --epochs 50
-
-# Layer width study
-python test_layer_widths.py
-
-# Dataset size study
-python test_dataset_sizes_optimal.py
+# Results: 33 species abundances (number densities)
+results = pd.DataFrame(y_linear, columns=TARGET_COLS)
+print("Top-5 most abundant species:")
+print(results.iloc[0].sort_values(ascending=False).head(5))
 ```
 
 ---
@@ -606,10 +616,11 @@ Species:        Static ordering (33 species from configs/static_species_list_32.
 
 ```python
 import sys
-sys.path.append('models/best_model')
+sys.path.append('results/runs/runs_autoencoder_x4800_optimal_retrained')
 
-from best_model import load_model, normalize_inputs, forward_autoencoder, TARGET_COLS
+from best_model import load_model, normalize_inputs, forward_autoencoder, denormalize_targets, TARGET_COLS
 import pandas as pd
+import numpy as np
 import torch
 
 # Load trained model
@@ -630,13 +641,10 @@ df = pd.DataFrame({
 # Predict
 X = normalize_inputs(df)
 with torch.no_grad():
-    y_scaled = forward_autoencoder(model, X).numpy()
+    y_scaled = forward_autoencoder(model, X).cpu().numpy()
+y_linear = denormalize_targets(y_scaled)
 
-# De-normalize
-from best_model import scale_targets_train_to_linear_torch
-y_linear = scale_targets_train_to_linear_torch(torch.tensor(y_scaled)).numpy()
-
-# Results
+# Results: 33 species number densities
 results = pd.DataFrame(y_linear, columns=TARGET_COLS)
 print("Top-5 most abundant species:")
 print(results.iloc[0].sort_values(ascending=False).head(5))
@@ -646,8 +654,6 @@ print(results.iloc[0].sort_values(ascending=False).head(5))
 
 ```python
 # Create T-P grid for atmospheric model
-import numpy as np
-
 T_grid = np.linspace(1000, 2500, 100)
 P_grid = np.logspace(-2, 2, 100)
 T_mesh, P_mesh = np.meshgrid(T_grid, P_grid)
@@ -663,13 +669,13 @@ df_grid = pd.DataFrame({
     'abund_S_dex': 7.12,
 })
 
-# Predict for 10,000 conditions in ~0.03 seconds!
+# Predict for 10,000 conditions in ~0.05 seconds
 X = normalize_inputs(df_grid)
 with torch.no_grad():
-    y_scaled = forward_autoencoder(model, X).numpy()
-y_linear = scale_targets_train_to_linear_torch(torch.tensor(y_scaled)).numpy()
+    y_scaled = forward_autoencoder(model, X).cpu().numpy()
+y_linear = denormalize_targets(y_scaled)
 
-# Shape: (10000, 21) - abundances for 21 species at 10k T-P points
+# Shape: (10000, 33) — abundances for 33 species at 10k T-P points
 ```
 
 ### Integration with Atmospheric Models
@@ -677,15 +683,8 @@ y_linear = scale_targets_train_to_linear_torch(torch.tensor(y_scaled)).numpy()
 ```python
 def chemistry_step(T, P, composition):
     """
-    Replace FastChem call with ML emulator.
-    
-    Args:
-        T: Temperature (K)
-        P: Pressure (bar)
-        composition: Dict with 'H', 'O', 'C', 'N', 'S' abundances in dex
-    
-    Returns:
-        abundances: Dict mapping species names to number densities
+    Drop-in replacement for FastChem in atmospheric models.
+    ~999× faster (5.1 ms → 0.005 ms per evaluation, batch mode).
     """
     df = pd.DataFrame({
         'T_K': [T],
@@ -699,15 +698,14 @@ def chemistry_step(T, P, composition):
     
     X = normalize_inputs(df)
     with torch.no_grad():
-        y_scaled = forward_autoencoder(model, X).numpy()
-    y_linear = scale_targets_train_to_linear_torch(torch.tensor(y_scaled)).numpy()
+        y_scaled = forward_autoencoder(model, X).cpu().numpy()
+    y_linear = denormalize_targets(y_scaled)
     
     return dict(zip(TARGET_COLS, y_linear[0]))
 
 # Use in your atmospheric model
 for layer in atmosphere:
     chem = chemistry_step(layer.T, layer.P, layer.composition)
-    # ~999× faster than calling FastChem (batch mode, measured 5.1ms)!
 ```
 
 ---
