@@ -8,7 +8,7 @@ A high-performance machine learning surrogate model for chemical equilibrium cal
 [![Log R²](https://img.shields.io/badge/Log_R²-0.9999-brightgreen)](https://github.com/yashnil/chemCalculations)
 
 **Status: Study Complete** (6 of 6 models trained)  
-**Best Model Performance**: Log R² = 0.9999, Log MAE = 0.0137 dex, ~999× speed-up over FastChem (batch mode, measured)  
+**Best Model Performance**: Log R² = 0.9999, Log MAE = 0.0137 dex, **~1,500× faster** on GPU / ~250× on CPU (measured)  
 **Best Model**: x4800_optimal_retrained (4800K samples, optimal architecture)  
 **Study Design**: 800K increments (800, 1600, 2400, 3200, 4000, 4800) — asymptotic behavior confirmed
 
@@ -64,7 +64,7 @@ Chemical equilibrium calculations are fundamental to understanding planetary and
 - **Stellar atmosphere modeling** - determining molecular opacities
 - **Planetary formation studies** - tracking chemical evolution during disk formation
 
-**The Problem**: FastChem is accurate (ground truth) but **computationally expensive**: ~5.1 milliseconds per evaluation (measured). This becomes prohibitive when millions to billions of evaluations are needed for:
+**The Problem**: FastChem is accurate (ground truth) but **computationally expensive**: ~2 ms per evaluation with engine reuse, ~6 ms with a fresh engine (measured). This becomes prohibitive when millions to billions of evaluations are needed for:
 - Bayesian retrievals requiring millions of forward model evaluations
 - 3D climate models needing chemistry at every grid point and timestep
 - Population studies analyzing thousands of exoplanets
@@ -74,12 +74,14 @@ Chemical equilibrium calculations are fundamental to understanding planetary and
 
 Modern astrophysical applications require **millions to billions** of chemistry evaluations:
 
-| Application | Evaluations Needed | Time with FastChem | Time with ML Emulator |
-|-------------|-------------------|--------------------|-----------------------|
-| **1D Atmospheric Profile** | ~10⁴ | 51 seconds | **0.05 seconds** |
-| **Exoplanet Retrieval** | ~10⁷ | 14.3 hours | **51 seconds** |
-| **3D GCM Simulation** | ~10⁹ | 59.5 days | **1.4 hours** |
-| **Population Study** | ~10¹⁰ | 1.6 years | **14.3 hours** |
+| Application | Evaluations Needed | Time with FastChem | ML Emulator (CPU) | ML Emulator (GPU) |
+|-------------|-------------------|--------------------|-----------------------|-----|
+| **1D Atmospheric Profile** | ~10⁴ | 13 seconds | **0.05 seconds** | **0.009 seconds** |
+| **Exoplanet Retrieval** | ~10⁷ | 3.6 hours | **51 seconds** | **9 seconds** |
+| **3D GCM Simulation** | ~10⁹ | 14.9 days | **1.4 hours** | **14 minutes** |
+| **Population Study** | ~10¹⁰ | 149 days | **14 hours** | **2.4 hours** |
+
+*FastChem: 1.3 ms/eval (engine reuse). CPU: 0.005 ms/eval (batch 10K). GPU: 0.0009 ms/eval (MPS, batch 10K). Measured on Apple M1 Max. See `scripts/fast_inference.py`.*
 
 **The bottleneck**: Chemical equilibrium calculations dominate runtime in:
 - JWST/HST atmospheric retrievals
@@ -99,7 +101,7 @@ Modern astrophysical applications require **millions to billions** of chemistry 
 
 ### Specific Goals
 
-1. **Speed**: Achieve >100× speed-up over FastChem (target: ~1000×)
+1. **Speed**: Achieve >10× speed-up over FastChem (measured: ~250× CPU, ~1,500× GPU)
 2. **Accuracy**: Maintain Log R² > 0.999 (99.9% variance explained)
 3. **Robustness**: Handle full parameter space (750-3000 K, 10⁻¹⁰-10⁵ bar)
 4. **Scalability**: Performance improves with dataset size
@@ -108,7 +110,7 @@ Modern astrophysical applications require **millions to billions** of chemistry 
 
 ### Success Criteria
 
-✅ **Achieved**: Log R² = 0.9999, ~999× speed-up, 45% Log MAE improvement from 800K→4800K  
+✅ **Achieved**: Log R² = 0.9999, ~1,500× speed-up on GPU (measured), 45% Log MAE improvement from 800K→4800K  
 ✅ **Achieved**: Production-ready with comprehensive validation  
 ✅ **Achieved**: Consistent architecture enabling fair comparison across dataset sizes  
 ✅ **Complete**: Asymptote study at 800K increments (800, 1600, 2400, 3200, 4000, 4800) — performance plateau confirmed at ~3200K
@@ -122,7 +124,7 @@ Modern astrophysical applications require **millions to billions** of chemistry 
 We replace the iterative FastChem solver with a **trained neural network** that:
 
 ✅ **Exceeds baseline accuracy**: Log R² = 0.9999 (99.99% variance explained), Log MAE = 0.0137 dex  
-✅ **Achieves ~999× speed-up**: 5.1 ms → 0.005 ms per evaluation (batch mode, measured)  
+✅ **Achieves ~1,500× speed-up on GPU**: 1.3 ms → 0.0009 ms per evaluation on MPS (Apple Silicon); ~250× on CPU  
 ✅ **Handles full parameter space**: 750–3000 K, 10⁻¹⁰–10⁵ bar  
 ✅ **Focuses on important species**: Predicts 33 species (32 + electrons, 99.68% mass coverage)  
 ✅ **Eliminates artifacts**: Zero vertical striping through aggressive low-T filtering (T > 750K)  
@@ -289,14 +291,27 @@ We conducted three systematic hyperparameter studies to identify optimal model c
 | Aspect | FastChem | ML Emulator | Advantage |
 |--------|----------|-------------|-----------|
 | **Accuracy** | Exact (ground truth) | Log R² = 0.9999, Test Loss = 1.47×10⁻² | Excellent match (99.99% variance) |
-| **Speed** | 5.1 ms/eval (measured) | 0.005 ms/eval (batch) | **~999× faster** |
+| **Speed** | 1.3 ms/eval (engine reuse) | 0.0009 ms/eval (GPU batch) | **~1,500× faster (GPU)** |
 | **Scalability** | Linear | Parallel batching | GPU-accelerable |
 | **Deployment** | C++ binary | Python/PyTorch | Easy integration |
 | **Use case** | Ground truth | Production inference | Complementary |
 
-\* *FastChem speed measured at 5.1 ms/eval (mean) on test system using `scripts/benchmark_fastchem_speed.py`. Performance may vary by hardware.*
+**Speed benchmark details** (measured on Apple M1 Max):
 
-**Bottom line**: ML emulator enables science that was previously impossible due to computational cost.
+| Batch Size | CPU ms/sample | CPU Speedup | MPS GPU ms/sample | GPU Speedup | GPU/CPU |
+|---|---|---|---|---|---|
+| 1 | 0.202 | 6× | 1.473 | 1× | 0.1× |
+| 10 | 0.062 | 21× | 0.177 | 7× | 0.4× |
+| 100 | 0.026 | 49× | 0.021 | 60× | 1.2× |
+| 1,000 | 0.009 | 149× | 0.003 | 476× | 3.2× |
+| **10,000** | **0.005** | **251×** | **0.0009** | **1,505×** | **6.0×** |
+| 100,000 | 0.006 | 231× | 0.001 | 1,299× | 5.6× |
+
+\* *FastChem baseline: 1.3 ms/sample (engine reuse). Measured using `scripts/fast_inference.py` with 5 repeats (median). MPS = Apple Metal GPU backend. GPU overhead dominates at small batches; use CPU for batch < 100.*
+
+**ONNX Runtime** (CPU): For small batch sizes (1–100), ONNX Runtime provides an additional ~2.4× speedup over PyTorch CPU by eliminating Python dispatch overhead. Export via `python scripts/export_onnx.py`. The ONNX model is 7.7 MB with negligible numerical differences (max diff ~10⁻⁵).
+
+**Bottom line**: On Apple Silicon GPU, the ML emulator is **~1,500× faster** than FastChem at batch sizes >= 10K. Even on CPU alone, it is **~250× faster**. This turns days-long retrieval calculations into minutes.
 
 ---
 
@@ -322,7 +337,7 @@ chemCalculations/
 │   ├── runs_autoencoder_x2400_optimal_retrained/
 │   ├── runs_autoencoder_x3200_optimal_retrained/
 │   ├── runs_autoencoder_x4000_optimal_retrained/
-│   └── runs_autoencoder_x4800_optimal_retrained/  # Best model
+│   └── runs_autoencoder_x4800_optimal_retrained/  # Best model (includes model.onnx)
 │
 ├── plots/                          # Visualization outputs
 │   ├── comparison_metrics.csv     # Performance metrics for all models
@@ -338,7 +353,9 @@ chemCalculations/
 ├── scripts/                        # Utility scripts
 │   ├── data_generation/           # FastChem job generation and merging
 │   ├── independent_validation.py  # Independent validation vs FastChem
-│   ├── benchmark_fastchem_speed.py # Speed comparison benchmark
+│   ├── benchmark_fastchem_speed.py # FastChem vs ML speed comparison
+│   ├── fast_inference.py          # Optimized inference (CPU vs MPS GPU)
+│   ├── export_onnx.py             # ONNX export and benchmark
 │   └── setup_fastchem_env.sh      # FastChem environment setup
 │
 ├── requirements.txt                # Python dependencies
@@ -669,7 +686,8 @@ df_grid = pd.DataFrame({
     'abund_S_dex': 7.12,
 })
 
-# Predict for 10,000 conditions in ~0.05 seconds
+# Predict for 10,000 conditions
+# CPU: ~0.05 seconds | MPS GPU: ~0.009 seconds
 X = normalize_inputs(df_grid)
 with torch.no_grad():
     y_scaled = forward_autoencoder(model, X).cpu().numpy()
@@ -678,13 +696,26 @@ y_linear = denormalize_targets(y_scaled)
 # Shape: (10000, 33) — abundances for 33 species at 10k T-P points
 ```
 
+**GPU Acceleration** (Apple Silicon — ~6× faster than CPU at batch 10K):
+
+```python
+# Load model on MPS GPU (Apple Silicon)
+model = load_model(device='mps')
+model.eval()
+
+X = normalize_inputs(df_grid).to('mps')
+with torch.no_grad():
+    y_scaled = forward_autoencoder(model, X).cpu().numpy()
+y_linear = denormalize_targets(y_scaled)
+```
+
 ### Integration with Atmospheric Models
 
 ```python
 def chemistry_step(T, P, composition):
     """
     Drop-in replacement for FastChem in atmospheric models.
-    ~999× faster (5.1 ms → 0.005 ms per evaluation, batch mode).
+    ~1,500× faster on GPU (1.3 ms → 0.0009 ms per evaluation, measured).
     """
     df = pd.DataFrame({
         'T_K': [T],
@@ -722,7 +753,7 @@ If you use this emulator in your research, please cite:
   year = {2025},
   version = {1.0},
   url = {https://github.com/yashnil/chemCalculations},
-  note = {~999× speed-up over FastChem (batch mode, measured 5.1ms) with Log R² = 0.9999}
+  note = {~1,500× speed-up over FastChem on GPU (measured) with Log R² = 0.9999}
 }
 ```
 
@@ -832,7 +863,7 @@ We generate training datasets by running FastChem on millions of randomly sample
    - Extract species number densities
 3. Handle failures: Mark NaN for failed calculations (filtered later)
 
-**Performance**: ~5.1 ms per evaluation (measured)
+**Performance**: ~1.3 ms per evaluation with engine reuse, ~6 ms cold start (measured)
 
 **Validation**:
 - Check for convergence flags
@@ -1150,7 +1181,7 @@ Species:     33
 
 ### Recommended for Production
 - **CPU**: Recent Intel/AMD or Apple Silicon
-- **GPU**: Optional (speeds up batch inference 10×)
+- **GPU**: Optional — Apple Silicon MPS gives ~6× over CPU (measured: 1.17M samples/sec on M1 Max)
 - **RAM**: 8 GB (comfortable for large batches)
 
 ### Dependencies
@@ -1214,9 +1245,9 @@ furnished to do so.
 
 **FastChem ML Emulator** solves the computational bottleneck in atmospheric modeling:
 
-- **Problem**: FastChem too slow (5.1 ms/call measured) for modern applications requiring millions to billions of evaluations
-- **Solution**: Neural network emulator (0.005 ms/call batch mode) with FlowMapAutoencoder architecture
-- **Result**: ~999× faster with excellent accuracy (Log R² = 0.9999, Log MAE = 0.0137 dex)
+- **Problem**: FastChem too slow (~1.3 ms/call measured, engine reuse) for modern applications requiring millions to billions of evaluations
+- **Solution**: Neural network emulator with FlowMapAutoencoder architecture, optimized for CPU and GPU inference
+- **Result**: ~1,500× faster on GPU (~250× on CPU) with excellent accuracy (Log R² = 0.9999, Log MAE = 0.0137 dex)
 - **Impact**: Enables JWST/HST retrievals, 3D GCMs, and population studies that were previously infeasible
 - **Scalability**: Performance improves with dataset size (tested 800K–4800K, achieving 45% Log MAE improvement with clear asymptotic plateau at ~3200K)
 
@@ -1236,7 +1267,7 @@ python -c "from results.runs.runs_autoencoder_x4800_optimal_retrained.best_model
 ---
 
 <p align="center">
-  <strong>FastChem ML Emulator — Accelerating Atmospheric Chemistry by ~999×</strong>
+  <strong>FastChem ML Emulator — Accelerating Atmospheric Chemistry by ~1,500×</strong>
 </p>
 
 <p align="center">
