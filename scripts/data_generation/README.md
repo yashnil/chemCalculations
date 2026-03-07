@@ -30,4 +30,24 @@ python merge_fastchem_outputs.py --jobs-root fastchem_jobs_x32 \
 
 All scripts accept `--help` for the full set of options. Adjust paths as needed. After merging, run the low-temperature filter (`v10/fix_stripe.py`) and the usual cleaning pass to obtain the final `*_no_stripe_clean.csv` files.
 
+### Targeted Oversampling
+
+`prepare_targeted_oversample.py` generates samples in regions where the ML emulator shows highest error (independent validation):
+
+- **Low-P (hot Jupiter)**: log₁₀(P) in [-6, -4] bar, T in [800, 2200] K, solar composition
+- **High C/O**: C/O in [1.5, 2.5], T and P across training range
+
+Use the full pipeline from the project root:
+
+```bash
+bash scripts/TARGETED_OVERSAMPLE_PIPELINE.sh
+```
+
+This creates `all_gas_fastchem_x4800_augmented.csv` (x4800 + ~100K targeted samples). Train with:
+
+```bash
+python src/train_autoencoder.py --config configs/x4800_augmented.json --loss-type log_ratio \
+  --run-dir results/runs/runs_autoencoder_x4800_augmented
+```
+
 

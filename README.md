@@ -214,7 +214,17 @@ To verify generalization beyond the training distribution, the best model (x4800
 - The hot Jupiter profile shows higher error (0.27 dex) due to low-pressure conditions (10⁻⁶ bar) that are sparse in training data
 - Maximum errors occur at extreme compositions (C/O > 1.5, [M/H] > +1.5)
 
-**Plots**: See `plots/independent_validation/` for parity plots, atmospheric profiles, and sweep comparisons.
+**Speed on independent validation** (320 conditions, inference-only timing, model loaded once):
+
+| Backend | Total Time | ms/eval | Speedup vs FastChem |
+|---------|------------|---------|---------------------|
+| FastChem (fresh engine/row) | 1.80 s | ~5.6 ms | 1× |
+| ML CPU | 0.008 s | ~0.026 ms | **213×** |
+| ML MPS GPU | 0.012 s | ~0.038 ms | **149×** |
+
+*At small batch sizes (40–120), CPU can outperform GPU due to kernel launch overhead. For large batches (≥1K), use GPU — see speed benchmark table below for 10K-batch numbers (~1,500×).*
+
+**Plots**: See `plots/independent_validation/` for parity plots, atmospheric profiles, and sweep comparisons. Run `python scripts/independent_validation.py` to regenerate.
 
 ### Hyperparameter Optimization Studies
 
@@ -1238,6 +1248,17 @@ furnished to do so.
 3. Physics-informed neural networks (enforce mass conservation)
 4. Active learning (sample T-P-composition space adaptively)
 5. Integration with radiative transfer (end-to-end differentiable atmospheres)
+
+### Suggested Next Steps to Improve the Model
+
+| Priority | Direction | Rationale |
+|----------|-----------|-----------|
+| **1** | **Targeted oversampling** | Hot Jupiter low-P (10⁻⁶ bar) and C/O > 1.5 show highest error; add more training samples in these regions to reduce Log MAE from 0.27 → <0.15 dex |
+| **2** | **Physics-informed loss** | Add soft mass-conservation penalty: `L_total = L_log_ratio + λ·‖Σᵢ nᵢ − Σᵢ n̂ᵢ‖` to enforce physical consistency |
+| **3** | **Uncertainty quantification** | Train a small ensemble (3–5 models) or use MC dropout; output mean + std for each species to support Bayesian retrievals |
+| **4** | **Knowledge distillation** | Train a smaller student model (e.g., 1M params) to match x4800 outputs; faster inference, smaller footprint for deployment |
+| **5** | **Curriculum learning** | Train first on easy conditions (solar, mid T-P), then fine-tune on hard regions (low P, extreme C/O); may improve generalization |
+| **6** | **Quantization (INT8)** | Post-training quantization for 2–4× smaller model and faster CPU inference; validate accuracy drop is acceptable |
 
 ---
 
