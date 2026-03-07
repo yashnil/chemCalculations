@@ -1284,17 +1284,3 @@ cd src && python train_autoencoder.py --config ../configs/x4800_optimal_retraine
 # Or use pre-trained model
 python -c "from results.runs.runs_autoencoder_x4800_optimal_retrained.best_model import load_model; model = load_model()"
 ```
-
----
-
-<p align="center">
-  <strong>FastChem ML Emulator — Accelerating Atmospheric Chemistry by ~1,500×</strong>
-</p>
-
-<p align="center">
-  <em>From days to minutes. From impossible to routine.</em>
-</p>
-
-<p align="center">
-  <sub>Developed at UC Santa Cruz | 2024-2026</sub>
-</p>
