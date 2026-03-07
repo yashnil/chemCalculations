@@ -197,12 +197,16 @@ def run_fastchem_on_conditions(df: pd.DataFrame) -> np.ndarray:
 # ML model runner
 # ---------------------------------------------------------------------------
 
-def run_model_on_conditions(df: pd.DataFrame) -> np.ndarray:
+def run_model_on_conditions(df: pd.DataFrame, model=None, device: torch.device | None = None) -> np.ndarray:
     """Run the x4800 ML emulator; return (n_rows, n_target_species) number densities."""
-    device = torch.device("cpu")
-    model = bm.load_model(device=device)
-    model.eval()
+    if device is None:
+        device = torch.device("cpu")
+    if model is None:
+        model = bm.load_model(device=device)
+        model.eval()
     X = bm.normalize_inputs(df)
+    if device.type == "mps":
+        X = X.to(device)
     with torch.no_grad():
         y_scaled = bm.forward_autoencoder(model, X).cpu().numpy()
     return bm.denormalize_targets(y_scaled)
@@ -367,14 +371,102 @@ def plot_sweep(sweep_vals: np.ndarray, y_true: np.ndarray, y_pred: np.ndarray,
 # Main
 # ---------------------------------------------------------------------------
 
+def _sync_mps():
+    """Synchronize MPS to get accurate timing."""
+    if hasattr(torch.mps, "synchronize"):
+        torch.mps.synchronize()
+
+
+def _bench_scenario(name: str, df: pd.DataFrame, key_species: list,
+                    all_metrics: list, has_mps: bool,
+                    model_cpu=None, model_mps=None,
+                    plot_fn=None):
+    """Run FastChem + ML (CPU & optionally MPS GPU) on a scenario; return (y_true, y_pred_cpu)."""
+    n = len(df)
+    print(f"  Running FastChem ({n} conditions)...")
+    t0 = time.time()
+    y_true = run_fastchem_on_conditions(df)
+    fc_time = time.time() - t0
+    fc_per_eval_ms = (fc_time / n) * 1000
+
+    # Pre-compute normalized inputs once
+    X_cpu = bm.normalize_inputs(df)
+
+    print(f"  Running ML emulator on CPU (inference only)...")
+    # Warmup
+    with torch.no_grad():
+        _ = bm.forward_autoencoder(model_cpu, X_cpu)
+    t0 = time.time()
+    with torch.no_grad():
+        y_scaled_cpu = bm.forward_autoencoder(model_cpu, X_cpu).cpu().numpy()
+    ml_cpu_time = time.time() - t0
+    cpu_per_eval_ms = (ml_cpu_time / n) * 1000
+    y_pred_cpu = bm.denormalize_targets(y_scaled_cpu)
+
+    ml_gpu_time = None
+    gpu_per_eval_ms = None
+    if has_mps and model_mps is not None:
+        print(f"  Running ML emulator on MPS GPU (inference only)...")
+        X_mps = X_cpu.to(torch.device("mps"))
+        # Warmup
+        with torch.no_grad():
+            _ = bm.forward_autoencoder(model_mps, X_mps)
+        _sync_mps()
+        t0 = time.time()
+        with torch.no_grad():
+            _ = bm.forward_autoencoder(model_mps, X_mps)
+        _sync_mps()
+        ml_gpu_time = time.time() - t0
+        gpu_per_eval_ms = (ml_gpu_time / n) * 1000
+
+    m = compute_metrics(y_true, y_pred_cpu)
+    m["scenario"] = name
+    m["n_conditions"] = n
+    m["fastchem_time_s"] = fc_time
+    m["fastchem_ms_per_eval"] = fc_per_eval_ms
+    m["ml_cpu_time_s"] = ml_cpu_time
+    m["ml_cpu_ms_per_eval"] = cpu_per_eval_ms
+    m["cpu_speedup"] = fc_per_eval_ms / max(cpu_per_eval_ms, 1e-9)
+    if ml_gpu_time is not None:
+        m["ml_gpu_time_s"] = ml_gpu_time
+        m["ml_gpu_ms_per_eval"] = gpu_per_eval_ms
+        m["gpu_speedup"] = fc_per_eval_ms / max(gpu_per_eval_ms, 1e-9)
+    all_metrics.append(m)
+
+    print(f"  Log MAE = {m['log_mae']:.4f} dex, Log R² = {m['log_r2']:.6f}")
+    print(f"  FastChem: {fc_time:.2f}s ({fc_per_eval_ms:.2f} ms/eval)")
+    print(f"  ML CPU:   {ml_cpu_time:.6f}s ({cpu_per_eval_ms:.4f} ms/eval) → {m['cpu_speedup']:.0f}× speedup")
+    if ml_gpu_time is not None:
+        print(f"  ML GPU:   {ml_gpu_time:.6f}s ({gpu_per_eval_ms:.4f} ms/eval) → {m['gpu_speedup']:.0f}× speedup")
+
+    if plot_fn:
+        plot_fn(y_true, y_pred_cpu)
+
+    return y_true, y_pred_cpu
+
+
 def main():
     OUT_DIR.mkdir(parents=True, exist_ok=True)
+
+    has_mps = torch.backends.mps.is_available()
 
     print("=" * 80)
     print("INDEPENDENT VALIDATION: ML Emulator vs FastChem")
     print("=" * 80)
     print(f"Model: x4800_optimal_retrained")
+    print(f"Device: CPU" + (" + MPS GPU" if has_mps else " (MPS not available)"))
     print(f"Output: {OUT_DIR}")
+    print()
+
+    # Load models once upfront (exclude load time from benchmarks)
+    print("Loading ML model on CPU...")
+    model_cpu = bm.load_model(device=torch.device("cpu"))
+    model_cpu.eval()
+    model_mps = None
+    if has_mps:
+        print("Loading ML model on MPS GPU...")
+        model_mps = bm.load_model(device=torch.device("mps"))
+        model_mps.eval()
     print()
 
     key_species = ["H2O1", "C1O1", "C1H4", "H2", "N2", "H3N1", "C1O2", "H2S1"]
@@ -383,70 +475,40 @@ def main():
     # --- Scenario 1: Hot Jupiter profile ---
     print("Scenario 1: Hot Jupiter T-P profile (solar composition)")
     df_hj = hot_jupiter_profile()
-    t0 = time.time()
-    y_true_hj = run_fastchem_on_conditions(df_hj)
-    fc_time = time.time() - t0
-    t0 = time.time()
-    y_pred_hj = run_model_on_conditions(df_hj)
-    ml_time = time.time() - t0
-    m = compute_metrics(y_true_hj, y_pred_hj)
-    m["scenario"] = "hot_jupiter_profile"
-    m["n_conditions"] = len(df_hj)
-    m["fastchem_time_s"] = fc_time
-    m["ml_time_s"] = ml_time
-    all_metrics.append(m)
-    print(f"  Log MAE = {m['log_mae']:.4f} dex, Log R² = {m['log_r2']:.6f}")
-    print(f"  FastChem: {fc_time:.2f}s, ML: {ml_time:.4f}s ({fc_time/max(ml_time,1e-9):.0f}× speedup)")
-    plot_parity(y_true_hj, y_pred_hj, "Hot Jupiter Profile: Predicted vs True",
-                OUT_DIR / "parity_hot_jupiter.png")
-    plot_profile_comparison(df_hj, y_true_hj, y_pred_hj, key_species[:4],
-                           "Hot Jupiter T-P Profile", OUT_DIR / "profile_hot_jupiter.png")
+    def _plot_hj(yt, yp):
+        plot_parity(yt, yp, "Hot Jupiter Profile: Predicted vs True",
+                    OUT_DIR / "parity_hot_jupiter.png")
+        plot_profile_comparison(df_hj, yt, yp, key_species[:4],
+                               "Hot Jupiter T-P Profile", OUT_DIR / "profile_hot_jupiter.png")
+    y_true_hj, y_pred_hj = _bench_scenario(
+        "hot_jupiter_profile", df_hj, key_species, all_metrics, has_mps,
+        model_cpu=model_cpu, model_mps=model_mps, plot_fn=_plot_hj)
     print()
 
     # --- Scenario 2: Cool dwarf profile ---
     print("Scenario 2: Cool dwarf T-P profile (solar composition)")
     df_cd = cool_dwarf_profile()
-    t0 = time.time()
-    y_true_cd = run_fastchem_on_conditions(df_cd)
-    fc_time = time.time() - t0
-    t0 = time.time()
-    y_pred_cd = run_model_on_conditions(df_cd)
-    ml_time = time.time() - t0
-    m = compute_metrics(y_true_cd, y_pred_cd)
-    m["scenario"] = "cool_dwarf_profile"
-    m["n_conditions"] = len(df_cd)
-    m["fastchem_time_s"] = fc_time
-    m["ml_time_s"] = ml_time
-    all_metrics.append(m)
-    print(f"  Log MAE = {m['log_mae']:.4f} dex, Log R² = {m['log_r2']:.6f}")
-    print(f"  FastChem: {fc_time:.2f}s, ML: {ml_time:.4f}s ({fc_time/max(ml_time,1e-9):.0f}× speedup)")
-    plot_parity(y_true_cd, y_pred_cd, "Cool Dwarf Profile: Predicted vs True",
-                OUT_DIR / "parity_cool_dwarf.png")
-    plot_profile_comparison(df_cd, y_true_cd, y_pred_cd, key_species[:4],
-                           "Cool Dwarf T-P Profile", OUT_DIR / "profile_cool_dwarf.png")
+    def _plot_cd(yt, yp):
+        plot_parity(yt, yp, "Cool Dwarf Profile: Predicted vs True",
+                    OUT_DIR / "parity_cool_dwarf.png")
+        plot_profile_comparison(df_cd, yt, yp, key_species[:4],
+                               "Cool Dwarf T-P Profile", OUT_DIR / "profile_cool_dwarf.png")
+    y_true_cd, y_pred_cd = _bench_scenario(
+        "cool_dwarf_profile", df_cd, key_species, all_metrics, has_mps,
+        model_cpu=model_cpu, model_mps=model_mps, plot_fn=_plot_cd)
     print()
 
     # --- Scenario 3: T-P grid ---
-    print("Scenario 3: Systematic T-P grid (solar composition, 12×10 = 120 points)")
+    print("Scenario 3: Systematic T-P grid (solar composition, 12x10 = 120 points)")
     df_grid = systematic_tp_grid()
-    t0 = time.time()
-    y_true_grid = run_fastchem_on_conditions(df_grid)
-    fc_time = time.time() - t0
-    t0 = time.time()
-    y_pred_grid = run_model_on_conditions(df_grid)
-    ml_time = time.time() - t0
-    m = compute_metrics(y_true_grid, y_pred_grid)
-    m["scenario"] = "tp_grid_solar"
-    m["n_conditions"] = len(df_grid)
-    m["fastchem_time_s"] = fc_time
-    m["ml_time_s"] = ml_time
-    all_metrics.append(m)
-    print(f"  Log MAE = {m['log_mae']:.4f} dex, Log R² = {m['log_r2']:.6f}")
-    print(f"  FastChem: {fc_time:.2f}s, ML: {ml_time:.4f}s ({fc_time/max(ml_time,1e-9):.0f}× speedup)")
-    plot_parity(y_true_grid, y_pred_grid, "T-P Grid (Solar): Predicted vs True",
-                OUT_DIR / "parity_tp_grid.png")
-    plot_residual_histogram(y_true_grid, y_pred_grid, "T-P Grid: Residual Distribution",
-                           OUT_DIR / "residuals_tp_grid.png")
+    def _plot_grid(yt, yp):
+        plot_parity(yt, yp, "T-P Grid (Solar): Predicted vs True",
+                    OUT_DIR / "parity_tp_grid.png")
+        plot_residual_histogram(yt, yp, "T-P Grid: Residual Distribution",
+                               OUT_DIR / "residuals_tp_grid.png")
+    y_true_grid, y_pred_grid = _bench_scenario(
+        "tp_grid_solar", df_grid, key_species, all_metrics, has_mps,
+        model_cpu=model_cpu, model_mps=model_mps, plot_fn=_plot_grid)
     print()
 
     # --- Scenario 4: C/O ratio sweep ---
@@ -454,53 +516,35 @@ def main():
     df_co = co_ratio_sweep()
     n_per = 20
     co_ratios = np.linspace(0.1, 2.0, n_per)
-    t0 = time.time()
-    y_true_co = run_fastchem_on_conditions(df_co)
-    fc_time = time.time() - t0
-    t0 = time.time()
-    y_pred_co = run_model_on_conditions(df_co)
-    ml_time = time.time() - t0
-    m = compute_metrics(y_true_co, y_pred_co)
-    m["scenario"] = "co_ratio_sweep"
-    m["n_conditions"] = len(df_co)
-    m["fastchem_time_s"] = fc_time
-    m["ml_time_s"] = ml_time
-    all_metrics.append(m)
-    print(f"  Log MAE = {m['log_mae']:.4f} dex, Log R² = {m['log_r2']:.6f}")
-    co_vals = np.tile(co_ratios, 2)
-    plot_sweep(co_vals, y_true_co, y_pred_co,
-               ["H2O1", "C1O1", "C1H4", "C1O2"], "C/O ratio",
-               "C/O Ratio Sweep", OUT_DIR / "sweep_co_ratio.png",
-               [(1500, 0.1), (2500, 10.0)], n_per)
-    plot_parity(y_true_co, y_pred_co, "C/O Sweep: Predicted vs True",
-                OUT_DIR / "parity_co_sweep.png")
+    def _plot_co(yt, yp):
+        co_vals = np.tile(co_ratios, 2)
+        plot_sweep(co_vals, yt, yp,
+                   ["H2O1", "C1O1", "C1H4", "C1O2"], "C/O ratio",
+                   "C/O Ratio Sweep", OUT_DIR / "sweep_co_ratio.png",
+                   [(1500, 0.1), (2500, 10.0)], n_per)
+        plot_parity(yt, yp, "C/O Sweep: Predicted vs True",
+                    OUT_DIR / "parity_co_sweep.png")
+    y_true_co, y_pred_co = _bench_scenario(
+        "co_ratio_sweep", df_co, key_species, all_metrics, has_mps,
+        model_cpu=model_cpu, model_mps=model_mps, plot_fn=_plot_co)
     print()
 
     # --- Scenario 5: Metallicity sweep ---
-    print("Scenario 5: Metallicity sweep (0.01× to 100× solar)")
+    print("Scenario 5: Metallicity sweep (0.01x to 100x solar)")
     df_met = metallicity_sweep()
     n_per_met = 25
     log_metal = np.linspace(-2, 2, n_per_met)
-    t0 = time.time()
-    y_true_met = run_fastchem_on_conditions(df_met)
-    fc_time = time.time() - t0
-    t0 = time.time()
-    y_pred_met = run_model_on_conditions(df_met)
-    ml_time = time.time() - t0
-    m = compute_metrics(y_true_met, y_pred_met)
-    m["scenario"] = "metallicity_sweep"
-    m["n_conditions"] = len(df_met)
-    m["fastchem_time_s"] = fc_time
-    m["ml_time_s"] = ml_time
-    all_metrics.append(m)
-    print(f"  Log MAE = {m['log_mae']:.4f} dex, Log R² = {m['log_r2']:.6f}")
-    metal_vals = np.tile(log_metal, 2)
-    plot_sweep(metal_vals, y_true_met, y_pred_met,
-               ["H2O1", "C1O1", "C1H4", "H3N1"], "log₁₀([M/H])",
-               "Metallicity Sweep", OUT_DIR / "sweep_metallicity.png",
-               [(1500, 0.1), (2500, 10.0)], n_per_met)
-    plot_parity(y_true_met, y_pred_met, "Metallicity Sweep: Predicted vs True",
-                OUT_DIR / "parity_metallicity.png")
+    def _plot_met(yt, yp):
+        metal_vals = np.tile(log_metal, 2)
+        plot_sweep(metal_vals, yt, yp,
+                   ["H2O1", "C1O1", "C1H4", "H3N1"], "log₁₀([M/H])",
+                   "Metallicity Sweep", OUT_DIR / "sweep_metallicity.png",
+                   [(1500, 0.1), (2500, 10.0)], n_per_met)
+        plot_parity(yt, yp, "Metallicity Sweep: Predicted vs True",
+                    OUT_DIR / "parity_metallicity.png")
+    y_true_met, y_pred_met = _bench_scenario(
+        "metallicity_sweep", df_met, key_species, all_metrics, has_mps,
+        model_cpu=model_cpu, model_mps=model_mps, plot_fn=_plot_met)
     print()
 
     # --- Combined parity plot ---
@@ -545,7 +589,12 @@ def main():
     print("INDEPENDENT VALIDATION SUMMARY")
     print("=" * 80)
     summary_df = pd.DataFrame(all_metrics)
-    print(summary_df[["scenario", "n_conditions", "log_mae", "log_r2", "log_max_err", "mean_bias"]].to_string(index=False))
+    cols = ["scenario", "n_conditions", "log_mae", "log_r2", "log_max_err", "mean_bias",
+            "fastchem_ms_per_eval", "ml_cpu_ms_per_eval", "cpu_speedup"]
+    if has_mps:
+        cols += ["ml_gpu_ms_per_eval", "gpu_speedup"]
+    avail_cols = [c for c in cols if c in summary_df.columns]
+    print(summary_df[avail_cols].to_string(index=False))
     summary_df.to_csv(OUT_DIR / "validation_summary.csv", index=False)
 
     print()
@@ -554,6 +603,16 @@ def main():
     print(f"  Log R²   = {m_all['log_r2']:.6f}")
     print(f"  Max err  = {m_all['log_max_err']:.4f} dex")
     print(f"  Mean bias = {m_all['mean_bias']:.4f} dex")
+    print()
+
+    total_fc = sum(m.get("fastchem_time_s", 0) for m in all_metrics if m["scenario"] != "ALL_COMBINED")
+    total_cpu = sum(m.get("ml_cpu_time_s", 0) for m in all_metrics if m["scenario"] != "ALL_COMBINED")
+    print(f"Total timing across all {sum(m['n_conditions'] for m in all_metrics if m['scenario'] != 'ALL_COMBINED')} evaluations:")
+    print(f"  FastChem total: {total_fc:.2f}s")
+    print(f"  ML CPU total:   {total_cpu:.4f}s  ({total_fc/max(total_cpu,1e-9):.0f}× overall speedup)")
+    if has_mps:
+        total_gpu = sum(m.get("ml_gpu_time_s", 0) for m in all_metrics if m["scenario"] != "ALL_COMBINED" and "ml_gpu_time_s" in m)
+        print(f"  ML GPU total:   {total_gpu:.4f}s  ({total_fc/max(total_gpu,1e-9):.0f}× overall speedup)")
     print()
     print(f"Plots and data saved to: {OUT_DIR}")
     print("=" * 80)
