@@ -46,7 +46,7 @@ def collect_metrics(run_tag: str, total_samples: int) -> Optional[Dict]:
         "log_mae": summary.get("test_log_mae", summary.get("log_mae", "")),
         "log_r2": summary.get("test_log_r2", summary.get("log_r2", "")),
         "linear_mae": summary.get("test_mae_linear", ""),
-        "linear_mse": summary.get("test_mse_linear", ""),
+        "linear_mse": summary.get("test_mse_linear", summary.get("test_loss_linear", "")),
     }
     return row
 

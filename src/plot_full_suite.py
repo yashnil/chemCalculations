@@ -153,65 +153,82 @@ def plot_loss_curves_all_sizes(output_path_loss: Path, output_path_log_mae: Path
 
 
 def plot_performance_vs_size(output_path: Path):
-    """Plot performance metrics vs dataset size."""
+    """Plot performance metrics vs dataset size (baseline + x4800_improved overlaid)."""
     if not COMPARISON_CSV.exists():
         print(f"⚠️  {COMPARISON_CSV} not found")
         return
-    
+
     df = pd.read_csv(COMPARISON_CSV)
-    
-    # Filter to optimal_retrained runs
+
+    # Baseline: optimal_retrained runs
     df_optimal = df[df["dataset"].str.contains("_optimal_retrained", na=False)].copy()
     df_optimal = df_optimal.sort_values("total_samples")
-    
+    df_improved = df[df["dataset"] == "x4800_improved"]
+
     if df_optimal.empty:
         print("⚠️  No optimal_retrained runs found in comparison_metrics.csv")
         return
-    
+
     fig, axes = plt.subplots(2, 2, figsize=(14, 10))
-    
+
     # Test Loss - log scale, units: log_ratio
     valid_test = ~df_optimal["test_loss"].isna() & (df_optimal["test_loss"] > 0)
     if valid_test.sum() > 0:
-        axes[0, 0].semilogy(df_optimal[valid_test]["total_samples"] / 1000, 
-                           df_optimal[valid_test]["test_loss"], 
-                           marker='o', linewidth=2, markersize=10, color='steelblue')
+        axes[0, 0].semilogy(df_optimal[valid_test]["total_samples"] / 1000,
+                           df_optimal[valid_test]["test_loss"],
+                           marker='o', linewidth=2, markersize=10, color='steelblue', label='Baseline')
+    if not df_improved.empty:
+        axes[0, 0].semilogy(4800, df_improved["test_loss"].iloc[0], marker='s', markersize=12,
+                           color='forestgreen', label='x4800_improved', linestyle='')
     axes[0, 0].set_xlabel("Training Samples (×1000)", fontsize=12)
     axes[0, 0].set_ylabel("Test Loss (log_ratio)", fontsize=12)
     axes[0, 0].set_title("Test Loss vs Dataset Size", fontsize=14, fontweight="bold")
+    axes[0, 0].legend()
     axes[0, 0].grid(True, alpha=0.3)
-    
+
     # Log MAE - log scale, units: dex
     valid_mae = ~df_optimal["log_mae"].isna() & (df_optimal["log_mae"] > 0)
     if valid_mae.sum() > 0:
-        axes[0, 1].semilogy(df_optimal[valid_mae]["total_samples"] / 1000, 
-                           df_optimal[valid_mae]["log_mae"], 
-                           marker='o', linewidth=2, markersize=10, color='coral')
+        axes[0, 1].semilogy(df_optimal[valid_mae]["total_samples"] / 1000,
+                           df_optimal[valid_mae]["log_mae"],
+                           marker='o', linewidth=2, markersize=10, color='coral', label='Baseline')
+    if not df_improved.empty:
+        axes[0, 1].semilogy(4800, df_improved["log_mae"].iloc[0], marker='s', markersize=12,
+                           color='forestgreen', label='x4800_improved', linestyle='')
     axes[0, 1].set_xlabel("Training Samples (×1000)", fontsize=12)
     axes[0, 1].set_ylabel("Log MAE (dex)", fontsize=12)
     axes[0, 1].set_title("Log MAE vs Dataset Size", fontsize=14, fontweight="bold")
+    axes[0, 1].legend()
     axes[0, 1].grid(True, alpha=0.3)
-    
+
     # Log R² - linear scale, units: unitless (0-1)
     valid_r2 = ~df_optimal["log_r2"].isna()
     if valid_r2.sum() > 0:
-        axes[1, 0].plot(df_optimal[valid_r2]["total_samples"] / 1000, 
-                       df_optimal[valid_r2]["log_r2"], 
-                       marker='o', linewidth=2, markersize=10, color='green')
+        axes[1, 0].plot(df_optimal[valid_r2]["total_samples"] / 1000,
+                       df_optimal[valid_r2]["log_r2"],
+                       marker='o', linewidth=2, markersize=10, color='green', label='Baseline')
+    if not df_improved.empty:
+        axes[1, 0].plot(4800, df_improved["log_r2"].iloc[0], marker='s', markersize=12,
+                       color='forestgreen', label='x4800_improved', linestyle='')
     axes[1, 0].set_xlabel("Training Samples (×1000)", fontsize=12)
     axes[1, 0].set_ylabel("Log R²", fontsize=12)
     axes[1, 0].set_title("Log R² vs Dataset Size", fontsize=14, fontweight="bold")
+    axes[1, 0].legend()
     axes[1, 0].grid(True, alpha=0.3)
-    
+
     # Validation Loss - log scale, units: log_ratio
     valid_val = ~df_optimal["val_loss"].isna() & (df_optimal["val_loss"] > 0)
     if valid_val.sum() > 0:
-        axes[1, 1].semilogy(df_optimal[valid_val]["total_samples"] / 1000, 
-                           df_optimal[valid_val]["val_loss"], 
-                           marker='o', linewidth=2, markersize=10, color='purple')
+        axes[1, 1].semilogy(df_optimal[valid_val]["total_samples"] / 1000,
+                           df_optimal[valid_val]["val_loss"],
+                           marker='o', linewidth=2, markersize=10, color='purple', label='Baseline')
+    if not df_improved.empty:
+        axes[1, 1].semilogy(4800, df_improved["val_loss"].iloc[0], marker='s', markersize=12,
+                           color='forestgreen', label='x4800_improved', linestyle='')
     axes[1, 1].set_xlabel("Training Samples (×1000)", fontsize=12)
     axes[1, 1].set_ylabel("Validation Loss (log_ratio)", fontsize=12)
     axes[1, 1].set_title("Validation Loss vs Dataset Size", fontsize=14, fontweight="bold")
+    axes[1, 1].legend()
     axes[1, 1].grid(True, alpha=0.3)
     
     plt.tight_layout()
@@ -344,62 +361,68 @@ def plot_scatter_optimal_model(output_path: Path, run_tag: str = "x800_optimal_r
 
 
 def plot_model_comparison_bar(output_path: Path):
-    """Bar chart comparing all optimal_retrained models."""
+    """Bar chart comparing all optimal_retrained models + x4800_improved."""
     if not COMPARISON_CSV.exists():
         print(f"⚠️  {COMPARISON_CSV} not found")
         return
-    
+
     df = pd.read_csv(COMPARISON_CSV)
-    
-    # Filter to optimal_retrained runs
+
+    # Include optimal_retrained runs + x4800_improved
     df_optimal = df[df["dataset"].str.contains("_optimal_retrained", na=False)].copy()
     df_optimal = df_optimal.sort_values("total_samples")
-    
+    df_improved = df[df["dataset"] == "x4800_improved"]
+    if not df_improved.empty:
+        df_optimal = pd.concat([df_optimal, df_improved], ignore_index=True)
+
     if df_optimal.empty:
         print("⚠️  No optimal_retrained runs found")
         return
-    
+
     fig, axes = plt.subplots(1, 3, figsize=(15, 5))
-    
+
     x = np.arange(len(df_optimal))
     width = 0.6
-    
+    # Color: baseline blue, improved green
+    colors = ["steelblue"] * len(df_optimal)
+    for i, ds in enumerate(df_optimal["dataset"]):
+        if ds == "x4800_improved":
+            colors[i] = "forestgreen"
+
     # Test Loss
     valid = ~df_optimal["test_loss"].isna()
     if valid.sum() > 0:
-        axes[0].bar(x[valid], df_optimal[valid]["test_loss"], width, 
-                   color='steelblue', alpha=0.8)
+        axes[0].bar(x[valid], df_optimal.loc[valid, "test_loss"], width,
+                   color=[c for c, v in zip(colors, valid) if v], alpha=0.8)
     axes[0].set_ylabel("Test Loss (log_ratio)", fontsize=12)
     axes[0].set_title("Test Loss Comparison", fontsize=14, fontweight="bold")
     axes[0].set_xticks(x)
-    axes[0].set_xticklabels([tag.replace("_optimal_retrained", "") for tag in df_optimal["dataset"]], 
-                           rotation=45, ha="right")
+    labels = [tag.replace("_optimal_retrained", "").replace("x4800_improved", "x4800 (improved)") for tag in df_optimal["dataset"]]
+    axes[0].set_xticklabels(labels, rotation=45, ha="right")
     axes[0].grid(axis="y", alpha=0.3)
-    
+
     # Log MAE
     valid = ~df_optimal["log_mae"].isna()
     if valid.sum() > 0:
-        axes[1].bar(x[valid], df_optimal[valid]["log_mae"], width, 
-                   color='coral', alpha=0.8)
+        axes[1].bar(x[valid], df_optimal.loc[valid, "log_mae"], width,
+                   color=[c for c, v in zip(colors, valid) if v], alpha=0.8)
     axes[1].set_ylabel("Log MAE (dex)", fontsize=12)
     axes[1].set_title("Log MAE Comparison", fontsize=14, fontweight="bold")
     axes[1].set_xticks(x)
-    axes[1].set_xticklabels([tag.replace("_optimal_retrained", "") for tag in df_optimal["dataset"]], 
-                          rotation=45, ha="right")
+    axes[1].set_xticklabels(labels, rotation=45, ha="right")
     axes[1].grid(axis="y", alpha=0.3)
-    
+
     # Log R²
     valid = ~df_optimal["log_r2"].isna()
     if valid.sum() > 0:
-        axes[2].bar(x[valid], df_optimal[valid]["log_r2"], width, 
-                   color='green', alpha=0.8)
+        axes[2].bar(x[valid], df_optimal.loc[valid, "log_r2"], width,
+                   color=[c for c, v in zip(colors, valid) if v], alpha=0.8)
     axes[2].set_ylabel("Log R²", fontsize=12)
     axes[2].set_title("Log R² Comparison", fontsize=14, fontweight="bold")
     axes[2].set_xticks(x)
-    axes[2].set_xticklabels([tag.replace("_optimal_retrained", "") for tag in df_optimal["dataset"]], 
-                           rotation=45, ha="right")
+    axes[2].set_xticklabels(labels, rotation=45, ha="right")
     axes[2].grid(axis="y", alpha=0.3)
-    
+
     plt.tight_layout()
     plt.savefig(output_path, dpi=150, bbox_inches="tight")
     print(f"✅ Saved model comparison to {output_path}")
@@ -438,7 +461,16 @@ def main():
     # 4. Model comparison bar chart
     print("\n4. Generating model comparison bar chart...")
     plot_model_comparison_bar(args.output_dir / "model_comparison_bar.png")
-    
+
+    # 5. Baseline vs improved comparison (x4800)
+    print("\n5. Generating baseline vs improved comparison plots...")
+    try:
+        from plot_baseline_vs_improved import plot_baseline_vs_improved_bar, plot_baseline_vs_improved_performance_curve
+        plot_baseline_vs_improved_bar(args.output_dir / "baseline_vs_improved_bar.png")
+        plot_baseline_vs_improved_performance_curve(args.output_dir / "baseline_vs_improved_performance.png")
+    except Exception as e:
+        print(f"⚠️  Baseline vs improved plots skipped: {e}")
+
     print("\n" + "="*80)
     print("✅ ALL PLOTS GENERATED!")
     print("="*80)
@@ -448,6 +480,8 @@ def main():
     print("  - performance_vs_size_full_suite.png")
     print("  - scatter_optimal_model.png")
     print("  - model_comparison_bar.png")
+    print("  - baseline_vs_improved_bar.png")
+    print("  - baseline_vs_improved_performance.png")
 
 
 if __name__ == "__main__":

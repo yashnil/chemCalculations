@@ -137,29 +137,33 @@ def plot_loss_curves_all_sizes(output_path: Path):
 
 
 def plot_performance_vs_size_with_asymptote(output_path: Path):
-    """Plot performance vs dataset size with asymptote analysis."""
+    """Plot performance vs dataset size with asymptote analysis (baseline + x4800_improved)."""
     df = pd.read_csv(COMPARISON_CSV)
-    
+
     # Prioritize optimal_retrained runs, fallback to consistent
     df_optimal = df[df["dataset"].str.contains("_optimal_retrained", na=False)].copy()
     if df_optimal.empty:
         df_optimal = df[df["dataset"].str.contains("_consistent", na=False)].copy()
     df_optimal = df_optimal.sort_values("total_samples")
-    
+    df_improved = df[df["dataset"] == "x4800_improved"]
+
     fig, axes = plt.subplots(2, 2, figsize=(14, 10))
-    
+
     # Test Loss - log scale, units: log_ratio
     valid_test = ~df_optimal["test_loss"].isna() & (df_optimal["test_loss"] > 0)
     if valid_test.sum() > 0:
-        axes[0, 0].semilogy(df_optimal[valid_test]["total_samples"] / 1000, 
-                           df_optimal[valid_test]["test_loss"], 
-                           marker='o', linewidth=2, markersize=10, color='steelblue', label='Optimal architecture')
+        axes[0, 0].semilogy(df_optimal[valid_test]["total_samples"] / 1000,
+                           df_optimal[valid_test]["test_loss"],
+                           marker='o', linewidth=2, markersize=10, color='steelblue', label='Baseline')
         # Add trend line
         x = df_optimal[valid_test]["total_samples"] / 1000
         y = df_optimal[valid_test]["test_loss"]
         z = np.polyfit(x, np.log10(y), 1)
         p = np.poly1d(z)
         axes[0, 0].plot(x, 10**p(x), '--', alpha=0.5, color='gray', label='Trend')
+    if not df_improved.empty:
+        axes[0, 0].semilogy(4800, df_improved["test_loss"].iloc[0], marker='s', markersize=12,
+                           color='forestgreen', label='x4800_improved', linestyle='')
     axes[0, 0].set_xlabel("Training Samples (×1000)", fontsize=12)
     axes[0, 0].set_ylabel("Test Loss (log_ratio)", fontsize=12)
     axes[0, 0].set_title("Test Loss vs Dataset Size", fontsize=14, fontweight="bold")
@@ -169,36 +173,48 @@ def plot_performance_vs_size_with_asymptote(output_path: Path):
     # Log MAE - log scale, units: dex
     valid_mae = ~df_optimal["log_mae"].isna() & (df_optimal["log_mae"] > 0)
     if valid_mae.sum() > 0:
-        axes[0, 1].semilogy(df_optimal[valid_mae]["total_samples"] / 1000, 
-                           df_optimal[valid_mae]["log_mae"], 
-                           marker='o', linewidth=2, markersize=10, color='coral')
+        axes[0, 1].semilogy(df_optimal[valid_mae]["total_samples"] / 1000,
+                           df_optimal[valid_mae]["log_mae"],
+                           marker='o', linewidth=2, markersize=10, color='coral', label='Baseline')
+    if not df_improved.empty:
+        axes[0, 1].semilogy(4800, df_improved["log_mae"].iloc[0], marker='s', markersize=12,
+                           color='forestgreen', label='x4800_improved', linestyle='')
     axes[0, 1].set_xlabel("Training Samples (×1000)", fontsize=12)
     axes[0, 1].set_ylabel("Log MAE (dex)", fontsize=12)
     axes[0, 1].set_title("Log MAE vs Dataset Size", fontsize=14, fontweight="bold")
+    axes[0, 1].legend()
     axes[0, 1].grid(True, alpha=0.3)
-    
+
     # Log R² - linear scale, units: unitless (0-1)
     valid_r2 = ~df_optimal["log_r2"].isna()
     if valid_r2.sum() > 0:
-        axes[1, 0].plot(df_optimal[valid_r2]["total_samples"] / 1000, 
-                       df_optimal[valid_r2]["log_r2"], 
-                       marker='o', linewidth=2, markersize=10, color='green')
+        axes[1, 0].plot(df_optimal[valid_r2]["total_samples"] / 1000,
+                       df_optimal[valid_r2]["log_r2"],
+                       marker='o', linewidth=2, markersize=10, color='green', label='Baseline')
+    if not df_improved.empty:
+        axes[1, 0].plot(4800, df_improved["log_r2"].iloc[0], marker='s', markersize=12,
+                       color='forestgreen', label='x4800_improved', linestyle='')
     axes[1, 0].set_xlabel("Training Samples (×1000)", fontsize=12)
     axes[1, 0].set_ylabel("Log R²", fontsize=12)
     axes[1, 0].set_title("Log R² vs Dataset Size", fontsize=14, fontweight="bold")
+    axes[1, 0].legend()
     axes[1, 0].grid(True, alpha=0.3)
-    
+
     # Validation Loss - log scale, units: log_ratio
     valid_val = ~df_optimal["val_loss"].isna() & (df_optimal["val_loss"] > 0)
     if valid_val.sum() > 0:
-        axes[1, 1].semilogy(df_optimal[valid_val]["total_samples"] / 1000, 
-                           df_optimal[valid_val]["val_loss"], 
-                           marker='o', linewidth=2, markersize=10, color='purple')
+        axes[1, 1].semilogy(df_optimal[valid_val]["total_samples"] / 1000,
+                           df_optimal[valid_val]["val_loss"],
+                           marker='o', linewidth=2, markersize=10, color='purple', label='Baseline')
+    if not df_improved.empty:
+        axes[1, 1].semilogy(4800, df_improved["val_loss"].iloc[0], marker='s', markersize=12,
+                           color='forestgreen', label='x4800_improved', linestyle='')
     axes[1, 1].set_xlabel("Training Samples (×1000)", fontsize=12)
     axes[1, 1].set_ylabel("Validation Loss (log_ratio)", fontsize=12)
     axes[1, 1].set_title("Validation Loss vs Dataset Size", fontsize=14, fontweight="bold")
+    axes[1, 1].legend()
     axes[1, 1].grid(True, alpha=0.3)
-    
+
     plt.tight_layout()
     plt.savefig(output_path, dpi=150, bbox_inches="tight")
     print(f"✅ Saved performance vs size plot to {output_path}")
@@ -206,23 +222,24 @@ def plot_performance_vs_size_with_asymptote(output_path: Path):
 
 
 def plot_asymptote_analysis(output_path: Path):
-    """Zoomed view of large dataset sizes to check for asymptoting."""
+    """Zoomed view of large dataset sizes to check for asymptoting (baseline + x4800_improved)."""
     df = pd.read_csv(COMPARISON_CSV)
     # Prioritize optimal_retrained runs
     df_optimal = df[df["dataset"].str.contains("_optimal_retrained", na=False)].copy()
     if df_optimal.empty:
         df_optimal = df[df["dataset"].str.contains("_consistent", na=False)].copy()
     df_optimal = df_optimal.sort_values("total_samples")
-    
+    df_improved = df[df["dataset"] == "x4800_improved"]
+
     fig, axes = plt.subplots(1, 2, figsize=(14, 5))
-    
+
     # Test Loss - zoomed, log scale, units: log_ratio
     valid = ~df_optimal["test_loss"].isna() & (df_optimal["test_loss"] > 0)
     if valid.sum() > 0:
         x = df_optimal[valid]["total_samples"] / 1000
         y = df_optimal[valid]["test_loss"]
-        
-        axes[0].semilogy(x, y, marker='o', linewidth=2, markersize=12, color='steelblue')
+
+        axes[0].semilogy(x, y, marker='o', linewidth=2, markersize=12, color='steelblue', label='Baseline')
         axes[0].set_xlabel("Training Samples (×1000)", fontsize=12)
         axes[0].set_ylabel("Test Loss (log_ratio)", fontsize=12)
         axes[0].set_title("Test Loss: Asymptote Analysis", fontsize=14, fontweight="bold")
@@ -232,16 +249,25 @@ def plot_asymptote_analysis(output_path: Path):
         for _, row in df_optimal[valid].iterrows():
             size = row["total_samples"] / 1000
             loss = row["test_loss"]
-            axes[0].annotate(f"{size:.0f}K", (size, loss), 
+            axes[0].annotate(f"{size:.0f}K", (size, loss),
                            textcoords="offset points", xytext=(0, 10), fontsize=9)
-    
+    if not df_improved.empty:
+        axes[0].semilogy(4800, df_improved["test_loss"].iloc[0], marker='s', markersize=14,
+                        color='forestgreen', label='x4800_improved', linestyle='')
+        axes[0].annotate("4800K (imp)", (4800, df_improved["test_loss"].iloc[0]),
+                       textcoords="offset points", xytext=(0, 10), fontsize=9)
+    axes[0].legend()
+
     # Validation Loss - zoomed, log scale, units: log_ratio
     valid_val = ~df_optimal["val_loss"].isna() & (df_optimal["val_loss"] > 0)
     if valid_val.sum() > 0:
         x = df_optimal[valid_val]["total_samples"] / 1000
         y = df_optimal[valid_val]["val_loss"]
-        
-        axes[1].semilogy(x, y, marker='o', linewidth=2, markersize=12, color='purple')
+
+        axes[1].semilogy(x, y, marker='o', linewidth=2, markersize=12, color='purple', label='Baseline')
+    if not df_improved.empty:
+        axes[1].semilogy(4800, df_improved["val_loss"].iloc[0], marker='s', markersize=14,
+                        color='forestgreen', label='x4800_improved', linestyle='')
         axes[1].set_xlabel("Training Samples (×1000)", fontsize=12)
         axes[1].set_ylabel("Validation Loss (log_ratio)", fontsize=12)
         axes[1].set_title("Validation Loss: Asymptote Analysis", fontsize=14, fontweight="bold")
@@ -251,9 +277,13 @@ def plot_asymptote_analysis(output_path: Path):
         for _, row in df_optimal[valid_val].iterrows():
             size = row["total_samples"] / 1000
             loss = row["val_loss"]
-            axes[1].annotate(f"{size:.0f}K", (size, loss), 
+            axes[1].annotate(f"{size:.0f}K", (size, loss),
                            textcoords="offset points", xytext=(0, 10), fontsize=9)
-    
+    if not df_improved.empty:
+        axes[1].annotate("4800K (imp)", (4800, df_improved["val_loss"].iloc[0]),
+                       textcoords="offset points", xytext=(0, 10), fontsize=9)
+    axes[1].legend()
+
     plt.tight_layout()
     plt.savefig(output_path, dpi=150, bbox_inches="tight")
     print(f"✅ Saved asymptote analysis to {output_path}")

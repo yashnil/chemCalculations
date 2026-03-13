@@ -104,6 +104,36 @@ class MLP(nn.Module):
         return self.network(x)
 
 
+class SimpleMLP(nn.Module):
+    """
+    Basic MLP that maps global inputs directly to outputs.
+    Compatible with the training loop: forward(y_i, dt, g) ignores y_i and dt, uses only g.
+    Returns (batch, 1, state_dim) to match FlowMapAutoencoder output shape.
+    """
+
+    def __init__(
+        self,
+        global_dim: int,
+        state_dim: int,
+        hidden_dims: Sequence[int],
+        activation_name: str = "silu",
+        dropout_p: float = 0.05,
+    ):
+        super().__init__()
+        act = get_activation(activation_name)
+        self.network = MLP(
+            input_dim=global_dim,
+            hidden_dims=list(hidden_dims),
+            output_dim=state_dim,
+            activation=act,
+            dropout_p=dropout_p,
+        )
+
+    def forward(self, y_i: torch.Tensor, dt_norm: torch.Tensor, g: torch.Tensor) -> torch.Tensor:
+        out = self.network(g)
+        return out.unsqueeze(1)
+
+
 class Encoder(nn.Module):
     """Encoder: concatenates state and global context -> latent z."""
 

@@ -48,7 +48,7 @@ def collect_one(tag: str, run_dir: Path, total_samples: Optional[int]) -> Option
         "log_mae": float(gm.get("log_mae", "nan")),
         "log_r2": float(gm.get("log_r2", "nan")),
         "linear_mae": float(s.get("test_mae_linear")),
-        "linear_mse": float(s.get("test_mse_linear")),
+        "linear_mse": float(s.get("test_mse_linear", s.get("test_loss_linear", float("nan")))),
     }
     return row
 

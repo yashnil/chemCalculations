@@ -369,7 +369,6 @@ class EvalResult:
 
 def evaluate(model: FlowMapAutoencoder, loader: DataLoader, device: torch.device, criterion: Optional[nn.Module] = None) -> EvalResult:
     model.eval()
-    # Use provided criterion (same as training) or fallback to MSE for compatibility
     if criterion is None:
         criterion = nn.MSELoss()
     losses, mses, maes, log_maes = [], [], [], []
@@ -659,7 +658,7 @@ def main() -> None:
     parser.add_argument("--config", type=str, default=None,
                         help="Path to config JSON file (default: use module-level constants)")
     parser.add_argument("--loss-type", type=str, default="huber", choices=["huber", "mse", "log_ratio"],
-                        help="Loss function: 'huber' (weighted, normalized), 'mse' (normalized), or 'log_ratio'")
+                        help="Loss function: 'huber', 'mse', or 'log_ratio'")
     parser.add_argument("--run-dir", type=str, default=None,
                         help="Output directory (default: runs_autoencoder_{dataset_tag})")
     args = parser.parse_args()
@@ -737,19 +736,14 @@ def main() -> None:
         LATENT_DIM,
     )
 
-    # Select loss function based on argument
-    use_linear_space_loss = False
     if args.loss_type == "mse":
         criterion = nn.MSELoss()
-        use_linear_space_loss = False
         log.info("Using MSE loss (plain) in normalized space")
     elif args.loss_type == "log_ratio":
         criterion = LogRatioLoss(weights=torch.as_tensor(weights, dtype=torch.float32, device=device), target_log_scale=TARGET_LOG_SCALE)
-        use_linear_space_loss = False  # Works in normalized space!
-        log.info("Using Log-Ratio loss (normalized space: TARGET_LOG_SCALE * |ŷ_scaled - y_scaled|)")
-    else:  # huber
+        log.info("Using Log-Ratio loss (normalized space)")
+    else:
         criterion = WeightedHuber(delta=0.02, weights=torch.as_tensor(weights, dtype=torch.float32, device=device))
-        use_linear_space_loss = False
         log.info("Using Weighted Huber loss (delta=0.02, normalized space)")
     
     optimizer = torch.optim.Adam(model.parameters(), lr=LR, weight_decay=WEIGHT_DECAY)
@@ -761,7 +755,6 @@ def main() -> None:
     best_path = OUT_DIR / "best.pt"
     best_py = OUT_DIR / "best_model.py"
     
-    # Track loss history for plotting
     loss_history = {
         "epoch": [],
         "train_loss": [],
@@ -801,7 +794,6 @@ def main() -> None:
         val_res = evaluate(model, val_loader, device, criterion)
         scheduler.step(val_res.loss)
         
-        # Record history
         loss_history["epoch"].append(epoch)
         loss_history["train_loss"].append(train_loss)
         loss_history["val_loss"].append(val_res.loss)
