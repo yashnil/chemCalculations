@@ -7,10 +7,12 @@ A high-performance machine learning surrogate model for chemical equilibrium cal
 [![Status](https://img.shields.io/badge/status-study--complete-brightgreen)](https://github.com/yashnil/chemCalculations)
 [![Log R²](https://img.shields.io/badge/Log_R²-0.9999-brightgreen)](https://github.com/yashnil/chemCalculations)
 
-**Status: Study Complete** (6 of 6 models trained)  
-**Best Model Performance**: Log R² = 0.9999, Log MAE = 0.0137 dex, **~1,500× faster** on GPU / ~250× on CPU (measured)  
-**Best Model**: x4800_optimal_retrained (4800K samples, optimal architecture)  
+**Status: Study Complete** (6 baseline + 1 improved model trained)  
+**Best Model Performance**: Log R² = 0.9999, Log MAE = 0.0039 dex, **~1,500× faster** on GPU / ~250× on CPU (measured)  
+**Best Model**: x4800_improved (4800K samples, AdamW + train-only normalization, FlowMap architecture)  
 **Study Design**: 800K increments (800, 1600, 2400, 3200, 4000, 4800) — asymptotic behavior confirmed
+
+**Improvement**: x4800_improved achieves ~51% lower test loss and ~71% lower Log MAE than x4800_optimal_retrained (same FlowMap architecture).
 
 ---
 
@@ -123,13 +125,14 @@ Modern astrophysical applications require **millions to billions** of chemistry 
 
 We replace the iterative FastChem solver with a **trained neural network** that:
 
-✅ **Exceeds baseline accuracy**: Log R² = 0.9999 (99.99% variance explained), Log MAE = 0.0137 dex  
+✅ **Exceeds baseline accuracy**: Log R² = 0.9999 (99.99% variance explained), Log MAE = 0.0039 dex (x4800_improved)  
 ✅ **Achieves ~1,500× speed-up on GPU**: 1.3 ms → 0.0009 ms per evaluation on MPS (Apple Silicon); ~250× on CPU  
 ✅ **Handles full parameter space**: 750–3000 K, 10⁻¹⁰–10⁵ bar  
 ✅ **Focuses on important species**: Predicts 33 species (32 + electrons, 99.68% mass coverage)  
 ✅ **Eliminates artifacts**: Zero vertical striping through aggressive low-T filtering (T > 750K)  
 ✅ **Is production-ready**: PyTorch FlowMapAutoencoder, self-contained inference, comprehensive validation  
 ✅ **Scales with data**: Performance improves from 800K to 4800K samples (45% Log MAE reduction), with plateau confirmed at ~3200K  
+✅ **Improved training**: AdamW optimizer + train-only normalization yield ~71% lower Log MAE than baseline (x4800_improved vs x4800_optimal_retrained)  
 
 ### Key Design Principles
 
@@ -148,15 +151,16 @@ We replace the iterative FastChem solver with a **trained neural network** that:
 
 ### Best Model Performance
 
-**🏆 Best Overall Performance (x4800_optimal_retrained):**
-- **Model**: x4800_optimal_retrained (FlowMapAutoencoder with optimal architecture)
-- **Test Loss**: 1.47×10⁻² (normalized log_ratio space)
-- **Validation Loss**: 1.60×10⁻²
-- **Log MAE**: 0.0137 dex (mean absolute error in log₁₀ space)
-- **Log R²**: 0.9996 (99.96% variance explained in log space)
+**🏆 Best Overall Performance (x4800_improved):**
+- **Model**: x4800_improved (FlowMapAutoencoder with AdamW + train-only normalization)
+- **Test Loss**: 7.27×10⁻³ (normalized log_ratio space)
+- **Validation Loss**: 7.65×10⁻³
+- **Log MAE**: 0.0039 dex (mean absolute error in log₁₀ space)
+- **Log R²**: 0.9999 (99.99% variance explained in log space)
 - **Dataset Size**: 4,800,000 samples
 - **Architecture**: latent_dim=192, width=512, layers=3, SiLU activation
 - **Species**: 33 species (32 + e-) with static ordering (99.68% coverage)
+- **Training**: AdamW optimizer, train-only normalization (no eval-time normalization)
 
 **Performance vs Dataset Size** (800K increments, consistent architecture):
 
@@ -167,19 +171,20 @@ We replace the iterative FastChem solver with a **trained neural network** that:
 | 2400K | 1.71×10⁻² | 1.68×10⁻² | 0.0157 | 0.9998 |
 | 3200K | 1.52×10⁻² | 1.66×10⁻² | 0.0139 | 0.9999 |
 | 4000K | 1.60×10⁻² | 1.60×10⁻² | 0.0149 | 0.9998 |
-| **4800K** | **1.47×10⁻²** | **1.60×10⁻²** | **0.0137** | **0.9996** |
+| 4800K (baseline) | 1.47×10⁻² | 1.60×10⁻² | 0.0137 | 0.9996 |
+| **4800K (improved)** | **7.27×10⁻³** | **7.65×10⁻³** | **0.0039** | **0.9999** |
 
 **Study Design**: 800K increments allow clearer visualization of the asymptotic learning curve, where performance gains diminish with increasing data (approaching the architecture's capacity limit).
 
 **Key Observations**:
-- Log MAE decreases from 0.0248 (800K) to 0.0137 (4800K) — **45% improvement**
-- Test loss decreases from 2.69×10⁻² (800K) to 1.47×10⁻² (4800K) — **45% improvement**
-- Log R² ≥ 0.9994 across all sizes, peaking at 0.9999 (x3200)
+- Log MAE decreases from 0.0248 (800K) to 0.0137 (4800K baseline) — **45% improvement**
+- **x4800_improved** achieves ~51% lower test loss and ~71% lower Log MAE than x4800_optimal_retrained (same FlowMap architecture)
+- Log R² ≥ 0.9994 across all sizes, peaking at 0.9999 (x3200, x4800_improved)
 - **Clear asymptotic plateau**: the jump from 800K→2400K yields a 37% Log MAE reduction, while 2400K→4800K yields only 13% more
-- x3200, x4000, and x4800 cluster tightly (Log MAE 0.0137–0.0149), confirming the architecture's capacity limit
+- x3200, x4000, and x4800 baseline cluster tightly (Log MAE 0.0137–0.0149), confirming the architecture's capacity limit
 - Diminishing returns beyond ~3200K suggest the optimal cost-performance tradeoff lies around 3200K–4000K
 
-**Training Configuration**:
+**Training Configuration (Baseline)**:
 - Dataset: up to 4800K samples (750–3000 K, T > 750K filter)
 - Split: 85% train / 10% val / 5% test
 - Architecture: FlowMapAutoencoder, 192-dim latent, 512-width layers (3 layers each)
@@ -190,10 +195,16 @@ We replace the iterative FastChem solver with a **trained neural network** that:
 - Dropout: 0.0 (no overfitting observed)
 - **Static Species Ordering**: Fixed species list ordered by mean abundance
 
+**Training Configuration (x4800_improved)**:
+- Same architecture as baseline; **AdamW** optimizer (vs Adam) in `train_autoencoder_improved.py`
+- **Train-only normalization**: Target statistics computed from training set only (no eval-time normalization)
+- Config: `configs/x4800_improved.json`
+
 **Key Improvements Over Previous Architecture**:
 - **Static ordering**: Consistent architecture across all 6 dataset sizes, enabling fair comparison
 - **Log-ratio loss**: Direct log-space error minimization across 30 orders of magnitude
 - **Optimal hyperparameters**: latent_dim=192, width=512, layers=3 determined via systematic studies
+- **AdamW + train-only norm**: ~71% Log MAE reduction in x4800_improved vs x4800_optimal_retrained
 
 ### Independent Validation (Out-of-Distribution)
 
@@ -276,6 +287,8 @@ We conducted three systematic hyperparameter studies to identify optimal model c
 - `plots/performance_vs_size.png` - Main performance metrics
 - `plots/performance_vs_size_comprehensive.png` - With trend analysis
 - `plots/asymptote_analysis.png` - Asymptote behavior analysis
+- `plots/baseline_vs_improved_bar.png` - x4800 baseline vs improved bar chart
+- `plots/baseline_vs_improved_performance.png` - Performance curves with x4800_improved overlay
 
 **Full results**: See `plots/comparison_metrics.csv`
 
@@ -298,9 +311,9 @@ We conducted three systematic hyperparameter studies to identify optimal model c
 
 ### Comparison: FastChem vs ML Emulator
 
-| Aspect | FastChem | ML Emulator | Advantage |
-|--------|----------|-------------|-----------|
-| **Accuracy** | Exact (ground truth) | Log R² = 0.9999, Test Loss = 1.47×10⁻² | Excellent match (99.99% variance) |
+| Aspect | FastChem | ML Emulator (x4800_improved) | Advantage |
+|--------|----------|-----------------------------|-----------|
+| **Accuracy** | Exact (ground truth) | Log R² = 0.9999, Test Loss = 7.27×10⁻³ | Excellent match (99.99% variance) |
 | **Speed** | 1.3 ms/eval (engine reuse) | 0.0009 ms/eval (GPU batch) | **~1,500× faster (GPU)** |
 | **Scalability** | Linear | Parallel batching | GPU-accelerable |
 | **Deployment** | C++ binary | Python/PyTorch | Easy integration |
@@ -331,12 +344,14 @@ We conducted three systematic hyperparameter studies to identify optimal model c
 chemCalculations/
 │
 ├── src/                            # Source code
-│   ├── train_autoencoder.py       # Main training script
-│   ├── autoencoder_model.py       # FlowMapAutoencoder architecture
+│   ├── train_autoencoder.py       # Main training script (baseline)
+│   ├── train_autoencoder_improved.py  # Improved training (AdamW, train-only norm, optional MLP)
+│   ├── autoencoder_model.py       # FlowMapAutoencoder + SimpleMLP architectures
 │   ├── diagnostics.py             # Comprehensive diagnostic suite
 │   ├── make_comparison_metrics.py # Collect metrics across dataset sizes
 │   ├── plot_full_suite.py         # Comprehensive plot generation
 │   ├── plot_comprehensive_analysis.py  # Asymptote analysis plots
+│   ├── plot_baseline_vs_improved.py   # Baseline vs x4800_improved comparison
 │   ├── plot_training_analysis.py  # Training curves and performance
 │   ├── plot_latent_dim_results.py # Latent dimension study plots
 │   └── plot_layer_width_results.py # Layer width study plots
@@ -347,10 +362,13 @@ chemCalculations/
 │   ├── runs_autoencoder_x2400_optimal_retrained/
 │   ├── runs_autoencoder_x3200_optimal_retrained/
 │   ├── runs_autoencoder_x4000_optimal_retrained/
-│   └── runs_autoencoder_x4800_optimal_retrained/  # Best model (includes model.onnx)
+│   ├── runs_autoencoder_x4800_optimal_retrained/
+│   └── runs_autoencoder_x4800_improved/  # Best model (AdamW, train-only norm)
 │
 ├── plots/                          # Visualization outputs
 │   ├── comparison_metrics.csv     # Performance metrics for all models
+│   ├── baseline_vs_improved_bar.png    # x4800 baseline vs improved bar chart
+│   ├── baseline_vs_improved_performance.png  # Performance curves with improved overlay
 │   ├── independent_validation/    # Independent validation results
 │   └── *.png                      # Study plots and visualizations
 │
@@ -359,9 +377,13 @@ chemCalculations/
 │   └── fastchem_data/             # FastChem logK and element abundance files
 │
 ├── configs/                        # Training configurations (JSON)
+│   ├── x4800_optimal_retrained.json   # Baseline config
+│   ├── x4800_improved.json            # Best model config (AdamW)
+│   └── mlp_config.json                # Optional SimpleMLP architecture
 │
 ├── scripts/                        # Utility scripts
 │   ├── data_generation/           # FastChem job generation and merging
+│   ├── update_comparison_baseline_vs_improved.py  # Update comparison_metrics.csv
 │   ├── independent_validation.py  # Independent validation vs FastChem
 │   ├── benchmark_fastchem_speed.py # FastChem vs ML speed comparison
 │   ├── fast_inference.py          # Optimized inference (CPU vs MPS GPU)
@@ -385,7 +407,12 @@ pip install -r requirements.txt
 ### Training a Model
 
 ```bash
-# Train with a config file
+# Train best model (x4800_improved) — AdamW, train-only normalization
+python src/train_autoencoder_improved.py \
+    --config configs/x4800_improved.json \
+    --run-dir results/runs/runs_autoencoder_x4800_improved
+
+# Or train baseline with original script
 python src/train_autoencoder.py \
     --config configs/x4800_optimal_retrained.json \
     --loss-type log_ratio \
@@ -393,8 +420,8 @@ python src/train_autoencoder.py \
 
 # Generate diagnostic plots for a trained model
 CSV_PATH=data/datasets/all_gas_fastchem_x4800.csv \
-BEST_MODULE=results/runs/runs_autoencoder_x4800_optimal_retrained/best_model.py \
-OUT_DIR=results/runs/runs_autoencoder_x4800_optimal_retrained/diagnostics \
+BEST_MODULE=results/runs/runs_autoencoder_x4800_improved/best_model.py \
+OUT_DIR=results/runs/runs_autoencoder_x4800_improved/diagnostics \
 python src/diagnostics.py
 ```
 
@@ -402,7 +429,7 @@ python src/diagnostics.py
 
 ```python
 import sys
-sys.path.append('results/runs/runs_autoencoder_x4800_optimal_retrained')
+sys.path.append('results/runs/runs_autoencoder_x4800_improved')  # Best model
 
 from best_model import load_model, normalize_inputs, forward_autoencoder, denormalize_targets, TARGET_COLS
 import pandas as pd
@@ -596,6 +623,14 @@ def forward(y0, dt, g):
 5. **Proven Architecture**: Used successfully in physics-informed ML
 6. **Scalable**: Architecture works across dataset sizes (800K → 4800K)
 
+### SimpleMLP (Optional Alternative)
+
+An alternative architecture is available via `train_autoencoder_improved.py` with `configs/mlp_config.json`:
+
+- **Architecture**: 6 fully connected layers of 1024 units each, with dropout (0.05)
+- **Input**: Global features (T, P, abundances) → direct mapping to 33 species
+- **Use case**: Simpler baseline for comparison; x4800_improved uses FlowMap (not MLP)
+
 ### Input Features (7 total)
 
 | Feature | Description | Normalization | Typical Range |
@@ -623,6 +658,7 @@ def forward(y0, dt, g):
 
 ### Training Configuration
 
+**Baseline** (`train_autoencoder.py`):
 ```python
 Optimizer:      Adam (lr=5×10⁻⁴, weight_decay=1×10⁻⁵)
 Scheduler:      ReduceLROnPlateau (factor=0.5, patience=10, min_lr=1×10⁻⁶)
@@ -635,6 +671,13 @@ Dataset size:   800K–4800K samples (800K increments, asymptote study)
 Species:        Static ordering (33 species from configs/static_species_list_32.json)
 ```
 
+**Best model** (`train_autoencoder_improved.py`, x4800_improved):
+```python
+Optimizer:      AdamW (lr=5×10⁻⁴, weight_decay=1×10⁻⁵)
+Normalization: Train-only (target stats from training set only)
+Architecture:  FlowMap (same as baseline) or optional SimpleMLP (6×1024, dropout 0.05)
+```
+
 ---
 
 ## Usage Examples
@@ -643,7 +686,7 @@ Species:        Static ordering (33 species from configs/static_species_list_32.
 
 ```python
 import sys
-sys.path.append('results/runs/runs_autoencoder_x4800_optimal_retrained')
+sys.path.append('results/runs/runs_autoencoder_x4800_improved')  # Best model
 
 from best_model import load_model, normalize_inputs, forward_autoencoder, denormalize_targets, TARGET_COLS
 import pandas as pd
@@ -1116,14 +1159,17 @@ Species:     33
 
 ### Best Model Diagnostics
 
-**x4800_optimal_retrained**:
-- Log R²: 0.9996 (99.96% variance explained)
-- Log MAE: 0.0137 dex
+**x4800_improved** (recommended):
+- Log R²: 0.9999 (99.99% variance explained)
+- Log MAE: 0.0039 dex
 - All species: R² > 0.99
 - No systematic biases observed
 - Error distribution: Normal, centered at zero
 
-**Diagnostic Files Location**: `results/runs/runs_autoencoder_x4800_optimal_retrained/diagnostics/`
+**x4800_optimal_retrained** (baseline):
+- Log R²: 0.9996, Log MAE: 0.0137 dex
+
+**Diagnostic Files Location**: `results/runs/runs_autoencoder_x4800_improved/diagnostics/`
 
 ---
 
@@ -1268,19 +1314,20 @@ furnished to do so.
 
 - **Problem**: FastChem too slow (~1.3 ms/call measured, engine reuse) for modern applications requiring millions to billions of evaluations
 - **Solution**: Neural network emulator with FlowMapAutoencoder architecture, optimized for CPU and GPU inference
-- **Result**: ~1,500× faster on GPU (~250× on CPU) with excellent accuracy (Log R² = 0.9999, Log MAE = 0.0137 dex)
+- **Result**: ~1,500× faster on GPU (~250× on CPU) with excellent accuracy (Log R² = 0.9999, Log MAE = 0.0039 dex)
 - **Impact**: Enables JWST/HST retrievals, 3D GCMs, and population studies that were previously infeasible
 - **Scalability**: Performance improves with dataset size (tested 800K–4800K, achieving 45% Log MAE improvement with clear asymptotic plateau at ~3200K)
+- **Improvement**: x4800_improved (AdamW + train-only norm) achieves ~71% lower Log MAE than baseline
 
 **Current status**: Study complete, production-ready, validated, and recommended for all use cases.
 
-**Best model**: x4800_optimal_retrained (4800K samples) — see `results/runs/runs_autoencoder_x4800_optimal_retrained/`
+**Best model**: x4800_improved (4800K samples) — see `results/runs/runs_autoencoder_x4800_improved/`
 
 **Get started**: 
 ```bash
-# Train a model
-cd src && python train_autoencoder.py --config ../configs/x4800_optimal_retrained.json
+# Train best model (x4800_improved)
+cd src && python train_autoencoder_improved.py --config ../configs/x4800_improved.json
 
 # Or use pre-trained model
-python -c "from results.runs.runs_autoencoder_x4800_optimal_retrained.best_model import load_model; model = load_model()"
+python -c "import sys; sys.path.insert(0, 'results/runs/runs_autoencoder_x4800_improved'); from best_model import load_model; model = load_model()"
 ```
