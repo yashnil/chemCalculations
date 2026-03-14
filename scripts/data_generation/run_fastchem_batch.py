@@ -6,6 +6,8 @@ run_fastchem_batch.py
 Execute FastChem for a single shard directory produced by prepare_fastchem_jobs.py.
 This script relies on the FastChem Python bindings (https://github.com/exoclime/FastChem).
 
+Output: Species number densities in cm⁻³ (FastChem default; output_data.number_densities).
+
 Example:
     python run_fastchem_batch.py \
         --job-dir fastchem_jobs_x32/job_0000 \

@@ -77,7 +77,7 @@ def run_diagnostics(run_tag: str, dataset_size: int):
             # Print key metrics
             with open(metrics_file) as f:
                 for line in f:
-                    if "Log MAE" in line or "Log R²" in line or "Log R" in line:
+                    if "Log MAE" in line or "Log R²" in line or "Log R" in line or "AAFE" in line:
                         print(f"    {line.strip()}")
             return True
         else:

@@ -35,6 +35,7 @@ COMPARISON_RUNS = [
     ("x4000_optimal_retrained", 4000000),
     ("x4800_optimal_retrained", 4800000),
     ("x4800_improved", 4800000),
+    ("x4800_mlp", 4800000),
 ]
 
 
@@ -52,6 +53,8 @@ def parse_global_metrics(txt_path: Path) -> Dict[str, float]:
         elif key.startswith("Log R"):
             val_num = val.replace(",", " ").split()[0]
             metrics["log_r2"] = float(val_num)
+        elif key == "AAFE":
+            metrics["aafe"] = float(val.replace(",", " ").split()[0])
     return metrics
 
 

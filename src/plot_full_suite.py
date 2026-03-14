@@ -39,6 +39,8 @@ OPTIMAL_RETRAINED_RUNS = [
     "x4000_optimal_retrained",
     "x4800_optimal_retrained",
 ]
+# Best model: prefer improved, else largest optimal_retrained
+BEST_MODEL_RUNS = ["x4800_improved"] + list(reversed(OPTIMAL_RETRAINED_RUNS))
 
 # Add src/ to path
 SRC_DIR = BASE_DIR / "src"
@@ -332,9 +334,9 @@ def plot_scatter_optimal_model(output_path: Path, run_tag: str = "x800_optimal_r
         dens = gaussian_kde(np.vstack([log_x, log_y]))(np.vstack([log_x, log_y]))
         order = dens.argsort()
         ax.scatter(x_plot[order], y_plot[order], c=dens[order], 
-                  cmap="viridis", s=1, alpha=0.6, linewidths=0)
+                  cmap="viridis", s=6, alpha=0.6, linewidths=0)
     except Exception:
-        ax.scatter(x_plot, y_plot, s=1, alpha=0.3, c='steelblue')
+        ax.scatter(x_plot, y_plot, s=6, alpha=0.3, c='steelblue')
     
     # Add 1:1 line
     lims = [max(x_plot.min(), y_plot.min()), min(x_plot.max(), y_plot.max())]
@@ -347,8 +349,8 @@ def plot_scatter_optimal_model(output_path: Path, run_tag: str = "x800_optimal_r
     
     ax.set_xscale("log")
     ax.set_yscale("log")
-    ax.set_xlabel("True Abundance (FastChem)", fontsize=12)
-    ax.set_ylabel("Predicted Abundance", fontsize=12)
+    ax.set_xlabel(r"True number density (cm$^{-3}$)", fontsize=12)
+    ax.set_ylabel(r"Predicted number density (cm$^{-3}$)", fontsize=12)
     ax.set_title(f"Predicted vs True: {best_run}\nLog MAE={log_mae:.4f} dex, Log R²={log_r2:.6f}", 
                  fontsize=14, fontweight="bold")
     ax.grid(True, alpha=0.3)
@@ -357,6 +359,75 @@ def plot_scatter_optimal_model(output_path: Path, run_tag: str = "x800_optimal_r
     plt.tight_layout()
     plt.savefig(output_path, dpi=150, bbox_inches="tight")
     print(f"✅ Saved scatter plot to {output_path}")
+    plt.close()
+
+
+def plot_aafe_per_species(output_path: Path):
+    """Average absolute fractional error per species for the best model."""
+    best_mod = None
+    best_run = None
+    for run in BEST_MODEL_RUNS:
+        mod = load_best_model_module(run)
+        if mod is not None:
+            best_mod = mod
+            best_run = run
+            break
+    if best_mod is None:
+        print("⚠️  Could not find best model for AAFE plot")
+        return
+
+    size = best_run.split("_")[0].replace("x", "")
+    csv_path = BASE_DIR / "data" / "datasets" / f"all_gas_fastchem_x{size}.csv"
+    if not csv_path.exists():
+        print(f"⚠️  Dataset not found: {csv_path}")
+        return
+
+    df = pd.read_csv(csv_path)
+    splits = getattr(best_mod, "SPLITS", {})
+    test_idx = np.array(splits.get("test_idx", []), dtype=int)
+    if len(test_idx) == 0:
+        print("⚠️  No test indices found")
+        return
+
+    df_test = df.iloc[test_idx].reset_index(drop=True)
+    target_cols = best_mod.TARGET_COLS
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = best_mod.load_model(device=device)
+    model.eval()
+
+    X_test = best_mod.normalize_inputs(df_test)
+    with torch.no_grad():
+        pred_scaled = best_mod.forward_autoencoder(model, X_test)
+        pred_scaled = pred_scaled.cpu().numpy()
+    y_pred = best_mod.denormalize_targets(pred_scaled)
+    y_true = df_test[target_cols].to_numpy(dtype=np.float64, copy=True)
+    y_true = np.clip(y_true, 0, None)
+    y_pred = np.clip(y_pred, 0, None)
+
+    eps = 1e-30
+    aafe_per_species = []
+    for i, sp in enumerate(target_cols):
+        denom = np.maximum(y_true[:, i], eps)
+        frac_err = np.abs(y_pred[:, i] - y_true[:, i]) / denom
+        aafe_per_species.append((sp, float(np.mean(frac_err))))
+
+    species, aafe = zip(*sorted(aafe_per_species, key=lambda x: x[1], reverse=True))
+    aafe = np.array(aafe)
+    aafe_global = float(np.mean(aafe))
+
+    fig, ax = plt.subplots(figsize=(12, 6))
+    colors = ["red" if v > aafe_global else "steelblue" for v in aafe]
+    ax.barh(range(len(species)), aafe, color=colors, alpha=0.7)
+    ax.set_yticks(range(len(species)))
+    ax.set_yticklabels(species, fontsize=8)
+    ax.set_xlabel("Average Absolute Fractional Error (|pred−true|/true)", fontsize=11)
+    ax.set_title(f"AAFE per Species: {best_run}\nGlobal average = {aafe_global:.4f} (Red = Above Average)", fontsize=12)
+    ax.axvline(aafe_global, color="black", linestyle="--", linewidth=1, label=f"Global AAFE = {aafe_global:.4f}")
+    ax.legend()
+    ax.grid(True, alpha=0.3, axis="x")
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=150, bbox_inches="tight")
+    print(f"✅ Saved AAFE per species to {output_path}")
     plt.close()
 
 
@@ -457,13 +528,17 @@ def main():
     # 3. Scatter plot for optimal model
     print("\n3. Generating scatter plot (predicted vs true) for optimal model...")
     plot_scatter_optimal_model(args.output_dir / "scatter_optimal_model.png")
-    
-    # 4. Model comparison bar chart
-    print("\n4. Generating model comparison bar chart...")
+
+    # 4. AAFE per species (best model)
+    print("\n4. Generating AAFE per species plot...")
+    plot_aafe_per_species(args.output_dir / "AAFE_per_species.png")
+
+    # 5. Model comparison bar chart
+    print("\n5. Generating model comparison bar chart...")
     plot_model_comparison_bar(args.output_dir / "model_comparison_bar.png")
 
-    # 5. Baseline vs improved comparison (x4800)
-    print("\n5. Generating baseline vs improved comparison plots...")
+    # 6. Baseline vs improved comparison (x4800)
+    print("\n6. Generating baseline vs improved comparison plots...")
     try:
         from plot_baseline_vs_improved import plot_baseline_vs_improved_bar, plot_baseline_vs_improved_performance_curve
         plot_baseline_vs_improved_bar(args.output_dir / "baseline_vs_improved_bar.png")
@@ -479,6 +554,7 @@ def main():
     print("  - log_mae_curves_full_suite.png (validation log MAE)")
     print("  - performance_vs_size_full_suite.png")
     print("  - scatter_optimal_model.png")
+    print("  - AAFE_per_species.png")
     print("  - model_comparison_bar.png")
     print("  - baseline_vs_improved_bar.png")
     print("  - baseline_vs_improved_performance.png")

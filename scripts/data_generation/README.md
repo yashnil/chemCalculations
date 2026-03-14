@@ -1,6 +1,8 @@
 # FastChem Data Generation Pipeline
 
 This folder recreates the helper scripts we used earlier to expand the FastChem dataset.
+
+**Output units**: FastChem outputs species number densities in cm⁻³ (particles per cubic centimeter). The merged CSV and ML emulator use the same units.
 The workflow mirrors the one described during the first resolution study:
 
 1. `prepare_fastchem_jobs.py` – sample new `(T, P, abundances)` states and split them into shard folders.

@@ -47,6 +47,10 @@ DPI = 150
 CLIP = 1e-10
 JITTER_DEX = 0.03
 
+# Output units (FastChem default: number densities in cm⁻³)
+ABUNDANCE_UNIT = r"cm$^{-3}$"
+ABUNDANCE_LABEL = f"Number density ({ABUNDANCE_UNIT})"
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s | %(levelname)-7s | %(message)s",
@@ -142,35 +146,45 @@ def main() -> None:
     log.info("  Log MAE:    %s", fmt(mae_log))
     log.info("  Log R²:     %.4f", r2_log)
 
-    with open(OUT_DIR / "global_metrics.txt", "w") as f:
-        f.write(f"Linear MAE:  {mae_linear:.6e}\n")
-        f.write(f"Linear R²:   {r2_linear:.6f}\n")
-        f.write(f"Log MAE:     {mae_log:.6e}\n")
-        f.write(f"Log R²:      {r2_log:.6f}\n")
-        f.write(f"Test samples: {len(y_true)}\n")
-        f.write(f"Species:     {len(target_cols)}\n")
-
     # -------------------------------------------------------------------------
     # Per-species metrics
     # -------------------------------------------------------------------------
     log.info("Computing per-species errors...")
+    EPS = 1e-30  # avoid division by zero for fractional error
     per_species = []
     for i, sp in enumerate(target_cols):
         mae_sp = mean_absolute_error(y_true[:, i], y_pred[:, i])
         r2_sp = r2_score(y_true[:, i], y_pred[:, i])
         max_abun = y_true[:, i].max()
         mean_abun = y_true[:, i].mean()
+        # Average absolute fractional error: mean(|pred - true| / max(true, eps))
+        denom = np.maximum(y_true[:, i], EPS)
+        frac_err = np.abs(y_pred[:, i] - y_true[:, i]) / denom
+        aafe_sp = float(np.mean(frac_err))
         per_species.append(
             {
                 "species": sp,
                 "MAE": mae_sp,
                 "R2": r2_sp,
+                "AAFE": aafe_sp,
                 "max_abundance": max_abun,
                 "mean_abundance": mean_abun,
             }
         )
 
     df_species = pd.DataFrame(per_species)
+    # Global AAFE: mean of per-species AAFE (consistent across all outputs)
+    aafe_global = float(df_species["AAFE"].mean())
+
+    with open(OUT_DIR / "global_metrics.txt", "w") as f:
+        f.write(f"Linear MAE:  {mae_linear:.6e}\n")
+        f.write(f"Linear R²:   {r2_linear:.6f}\n")
+        f.write(f"Log MAE:     {mae_log:.6e}\n")
+        f.write(f"Log R²:      {r2_log:.6f}\n")
+        f.write(f"AAFE:        {aafe_global:.6f}\n")
+        f.write(f"Test samples: {len(y_true)}\n")
+        f.write(f"Species:     {len(target_cols)}\n")
+
     df_species.sort_values("MAE", ascending=False).to_csv(
         OUT_DIR / "per_species_errors.csv", index=False
     )
@@ -225,16 +239,18 @@ def main() -> None:
         else:
             ax.scatter(x_plot, y_plot, s=5, alpha=0.5, c="blue")
 
-        lims = [CLIP, 1.0]
+        lims_lo = max(CLIP, float(np.minimum(x_plot.min(), y_plot.min())))
+        lims_hi = max(lims_lo * 1.01, float(np.maximum(x_plot.max(), y_plot.max())))
+        lims = [lims_lo, lims_hi]
         ax.plot(lims, lims, "k--", lw=1, alpha=0.6)
-        xx = np.geomspace(CLIP, 1.0, 100)
+        xx = np.geomspace(lims_lo, lims_hi, 100)
         ax.fill_between(xx, 0.9 * xx, 1.1 * xx, color="gray", alpha=0.2, zorder=0)
         ax.set_xscale("log")
         ax.set_yscale("log")
-        ax.set_xlim(CLIP, 1.0)
-        ax.set_ylim(CLIP, 1.0)
-        ax.set_xlabel("True", fontsize=8)
-        ax.set_ylabel("Predicted", fontsize=8)
+        ax.set_xlim(lims)
+        ax.set_ylim(lims)
+        ax.set_xlabel("True (cm⁻³)", fontsize=8)
+        ax.set_ylabel("Predicted (cm⁻³)", fontsize=8)
         ax.set_title(sp, fontsize=9)
         ax.grid(True, alpha=0.3, which="both")
 
@@ -281,16 +297,19 @@ def main() -> None:
             x_plot, y_plot, xscale="log", yscale="log", gridsize=100, cmap="viridis", mincnt=1
         )
 
-    lims = [CLIP, 1.0]
+    # Data-driven axis limits (same as scatter_optimal_model for consistency)
+    lims_lo = max(CLIP, float(np.minimum(x_plot.min(), y_plot.min())))
+    lims_hi = max(lims_lo * 1.01, float(np.maximum(x_plot.max(), y_plot.max())))
+    lims = [lims_lo, lims_hi]
     ax.plot(lims, lims, "k--", lw=1.5, alpha=0.8, label="1:1")
-    xx = np.geomspace(CLIP, 1.0, 100)
+    xx = np.geomspace(lims_lo, lims_hi, 100)
     ax.fill_between(xx, 0.9 * xx, 1.1 * xx, color="gray", alpha=0.3, label="±10%")
     ax.set_xscale("log")
     ax.set_yscale("log")
-    ax.set_xlim(CLIP, 1.0)
-    ax.set_ylim(CLIP, 1.0)
-    ax.set_xlabel("True Abundance", fontsize=12)
-    ax.set_ylabel("Predicted Abundance", fontsize=12)
+    ax.set_xlim(lims)
+    ax.set_ylim(lims)
+    ax.set_xlabel(f"True {ABUNDANCE_LABEL}", fontsize=12)
+    ax.set_ylabel(f"Predicted {ABUNDANCE_LABEL}", fontsize=12)
     ax.set_title("Overall Parity: All Species Pooled", fontsize=13)
     ax.legend(fontsize=10)
     ax.grid(True, alpha=0.3, which="both")
@@ -308,7 +327,7 @@ def main() -> None:
     ax.barh(range(len(df_sorted)), df_sorted["MAE"], color=colors, alpha=0.7)
     ax.set_yticks(range(len(df_sorted)))
     ax.set_yticklabels(df_sorted["species"], fontsize=8)
-    ax.set_xlabel("Mean Absolute Error", fontsize=11)
+    ax.set_xlabel(f"Mean Absolute Error ({ABUNDANCE_UNIT})", fontsize=11)
     ax.set_title("MAE per Species (Red = Above Global Average)", fontsize=12)
     ax.axvline(mae_linear, color="black", linestyle="--", linewidth=1, label=f"Global MAE = {mae_linear:.3e}")
     ax.legend()
@@ -317,6 +336,25 @@ def main() -> None:
     plt.savefig(OUT_DIR / "MAE_per_species.png", dpi=DPI)
     plt.close()
     log.info("✓ Saved: MAE_per_species.png")
+
+    # Average absolute fractional error per species
+    log.info("Generating AAFE per species plot...")
+    fig, ax = plt.subplots(figsize=(12, 6))
+    df_aafe = df_species.sort_values("AAFE", ascending=False)
+    aafe_global = df_species["AAFE"].mean()
+    colors = ["red" if v > aafe_global else "steelblue" for v in df_aafe["AAFE"]]
+    ax.barh(range(len(df_aafe)), df_aafe["AAFE"], color=colors, alpha=0.7)
+    ax.set_yticks(range(len(df_aafe)))
+    ax.set_yticklabels(df_aafe["species"], fontsize=8)
+    ax.set_xlabel("Average Absolute Fractional Error (|pred−true|/true)", fontsize=11)
+    ax.set_title(f"AAFE per Species — Global average = {aafe_global:.4f} (Red = Above Average)", fontsize=12)
+    ax.axvline(aafe_global, color="black", linestyle="--", linewidth=1, label=f"Global AAFE = {aafe_global:.4f}")
+    ax.legend()
+    ax.grid(True, alpha=0.3, axis="x")
+    plt.tight_layout()
+    plt.savefig(OUT_DIR / "AAFE_per_species.png", dpi=DPI)
+    plt.close()
+    log.info("✓ Saved: AAFE_per_species.png")
 
     # Residual vs observed
     log.info("Generating residual vs observed plot...")
@@ -335,8 +373,8 @@ def main() -> None:
     ax.axhline(mae_linear, color="red", linestyle="--", linewidth=1, alpha=0.6, label="+MAE")
     ax.axhline(-mae_linear, color="red", linestyle="--", linewidth=1, alpha=0.6, label="-MAE")
     ax.set_xscale("log")
-    ax.set_xlabel("True Abundance", fontsize=12)
-    ax.set_ylabel("Residual (Pred - True)", fontsize=12)
+    ax.set_xlabel(f"True {ABUNDANCE_LABEL}", fontsize=12)
+    ax.set_ylabel(f"Residual (Pred − True, {ABUNDANCE_UNIT})", fontsize=12)
     ax.set_title("Residuals vs Observed Abundance", fontsize=13)
     ax.legend()
     ax.grid(True, alpha=0.3)
@@ -354,7 +392,7 @@ def main() -> None:
     axes[0].axvline(0, color="red", linestyle="--", linewidth=2)
     axes[0].axvline(mae_linear, color="orange", linestyle="--", linewidth=1, label=f"MAE={mae_linear:.3e}")
     axes[0].axvline(-mae_linear, color="orange", linestyle="--", linewidth=1)
-    axes[0].set_xlabel("Residual (Pred - True)", fontsize=11)
+    axes[0].set_xlabel(f"Residual (Pred − True, {ABUNDANCE_UNIT})", fontsize=11)
     axes[0].set_ylabel("Count", fontsize=11)
     axes[0].set_title("Linear Space Residuals", fontsize=12)
     axes[0].legend()
@@ -409,7 +447,7 @@ def main() -> None:
                 edgecolor="black",
             )
             ax.set_xscale("log")
-            ax.set_xlabel("Abundance", fontsize=11)
+            ax.set_xlabel(ABUNDANCE_LABEL, fontsize=11)
             ax.set_ylabel("Count", fontsize=11)
             ax.set_title(f"Distribution: {sp}", fontsize=12)
             ax.grid(True, alpha=0.3)
@@ -432,6 +470,7 @@ def main() -> None:
         f.write(f"Linear R²:         {r2_linear:.6f}\n")
         f.write(f"Log MAE (dex):     {mae_log:.6e}\n")
         f.write(f"Log R²:            {r2_log:.6f}\n")
+        f.write(f"AAFE:              {aafe_global:.6f}\n")
         f.write(f"Test samples:      {len(y_true):,}\n")
         f.write(f"Species predicted: {len(target_cols)}\n\n")
 
@@ -457,6 +496,7 @@ def main() -> None:
         f.write("• parity_top10.png - Parity plots for 10 most abundant species\n")
         f.write("• parity_overall.png - All species pooled parity plot\n")
         f.write("• MAE_per_species.png - Error breakdown\n")
+        f.write("• AAFE_per_species.png - Average absolute fractional error per species\n")
         f.write("• residual_vs_observed.png - Residual analysis\n")
         f.write("• error_distribution.png - Error histograms\n")
         f.write("• hist_obs_*.png - Individual species distributions (top-5)\n")

@@ -30,6 +30,8 @@ def parse_global_metrics(txt_path: Path) -> Dict[str, float]:
             # handles "Log R²" or "Log R^2"
             val_num = val.replace(",", " ").split()[0]
             metrics["log_r2"] = float(val_num)
+        elif key == "AAFE":
+            metrics["aafe"] = float(val.replace(",", " ").split()[0])
     return metrics
 
 

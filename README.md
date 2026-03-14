@@ -456,7 +456,7 @@ with torch.no_grad():
     y_scaled = forward_autoencoder(model, X).cpu().numpy()
 y_linear = denormalize_targets(y_scaled)
 
-# Results: 33 species abundances (number densities)
+# Results: 33 species number densities (cm⁻³)
 results = pd.DataFrame(y_linear, columns=TARGET_COLS)
 print("Top-5 most abundant species:")
 print(results.iloc[0].sort_values(ascending=False).head(5))
@@ -512,7 +512,7 @@ The FlowMapAutoencoder is a specialized architecture designed for learning mappi
 │  │ Output: state(33)                    │                  │
 │  └──────────────────────────────────────┘                  │
 │         ↓                                                   │
-│  Output: [33 species abundances]                           │
+│  Output: [33 species number densities, cm⁻³]               │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -655,6 +655,17 @@ An alternative architecture is available via `train_autoencoder_improved.py` wit
 **Coverage**: 99.68% of total mass abundance  
 **Ordering**: Determined once from comprehensive dataset analysis, fixed for all training runs  
 **Benefits**: Consistent architecture, reproducible outputs, better performance than dynamic selection
+
+### Output Units (FastChem Default)
+
+**Both FastChem and this emulator output species number densities in cm⁻³** (particles per cubic centimeter). This matches the FastChem default (see [FastChem documentation](https://newstrangeworlds.github.io/FastChem/sections/input_output.html)).
+
+- **Training data**: Generated via `pyfastchem` → `output_data.number_densities` → number densities in cm⁻³
+- **Model output**: Same units; `denormalize_targets()` returns values in cm⁻³
+- **Typical range**: ~10⁻³⁰ (trace species) to ~10²³ (dominant species at high P, T) depending on conditions
+- **Plots**: All parity, scatter, and error plots use consistent axis labels with units (cm⁻³)
+
+*Note: FastChem can optionally output mixing ratios via config; this project uses the default number-density output.*
 
 ### Training Configuration
 
