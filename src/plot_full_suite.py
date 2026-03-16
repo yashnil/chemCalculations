@@ -240,12 +240,12 @@ def plot_performance_vs_size(output_path: Path):
 
 
 def plot_scatter_optimal_model(output_path: Path, run_tag: str = "x800_optimal_retrained"):
-    """Generate scatter plot (predicted vs true) for the optimal model."""
-    # Try to find the best model (largest dataset)
+    """Generate scatter plot (predicted vs true) for the best model (x4800_improved)."""
+    # Prefer x4800_improved (best model), else fall back to largest optimal_retrained
     best_mod = None
     best_run = None
     
-    for run in reversed(OPTIMAL_RETRAINED_RUNS):
+    for run in BEST_MODEL_RUNS:
         mod = load_best_model_module(run)
         if mod is not None:
             best_mod = mod
@@ -405,24 +405,31 @@ def plot_aafe_per_species(output_path: Path):
     y_pred = np.clip(y_pred, 0, None)
 
     eps = 1e-30
+    aafe_threshold = 1e-10  # only for samples where true >= this (avoids explosion for rare species)
     aafe_per_species = []
     for i, sp in enumerate(target_cols):
-        denom = np.maximum(y_true[:, i], eps)
-        frac_err = np.abs(y_pred[:, i] - y_true[:, i]) / denom
-        aafe_per_species.append((sp, float(np.mean(frac_err))))
+        mask = y_true[:, i] >= aafe_threshold
+        if mask.sum() > 0:
+            denom = np.maximum(y_true[:, i][mask], eps)
+            frac_err = np.abs(y_pred[:, i][mask] - y_true[:, i][mask]) / denom
+            aafe_per_species.append((sp, float(np.mean(frac_err))))
+        else:
+            aafe_per_species.append((sp, float("nan")))
 
-    species, aafe = zip(*sorted(aafe_per_species, key=lambda x: x[1], reverse=True))
+    species, aafe = zip(*sorted(aafe_per_species, key=lambda x: (np.isnan(x[1]), -x[1] if not np.isnan(x[1]) else 0)))
     aafe = np.array(aafe)
-    aafe_global = float(np.mean(aafe))
+    aafe_valid = [v for v in aafe if not np.isnan(v)]
+    aafe_global = float(np.mean(aafe_valid)) if aafe_valid else float("nan")
 
     fig, ax = plt.subplots(figsize=(12, 6))
-    colors = ["red" if v > aafe_global else "steelblue" for v in aafe]
-    ax.barh(range(len(species)), aafe, color=colors, alpha=0.7)
+    colors = ["red" if (not np.isnan(v) and v > aafe_global) else "steelblue" if not np.isnan(v) else "gray" for v in aafe]
+    ax.barh(range(len(species)), [v if not np.isnan(v) else 0 for v in aafe], color=colors, alpha=0.7)
     ax.set_yticks(range(len(species)))
     ax.set_yticklabels(species, fontsize=8)
-    ax.set_xlabel("Average Absolute Fractional Error (|pred−true|/true)", fontsize=11)
+    ax.set_xlabel("Average Absolute Fractional Error (|pred−true|/true, true≥1e-10)", fontsize=11)
     ax.set_title(f"AAFE per Species: {best_run}\nGlobal average = {aafe_global:.4f} (Red = Above Average)", fontsize=12)
-    ax.axvline(aafe_global, color="black", linestyle="--", linewidth=1, label=f"Global AAFE = {aafe_global:.4f}")
+    if not np.isnan(aafe_global):
+        ax.axvline(aafe_global, color="black", linestyle="--", linewidth=1, label=f"Global AAFE = {aafe_global:.4f}")
     ax.legend()
     ax.grid(True, alpha=0.3, axis="x")
     plt.tight_layout()

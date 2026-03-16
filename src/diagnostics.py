@@ -151,16 +151,22 @@ def main() -> None:
     # -------------------------------------------------------------------------
     log.info("Computing per-species errors...")
     EPS = 1e-30  # avoid division by zero for fractional error
+    AAFE_THRESHOLD = 1e-10  # only compute fractional error when true >= this (avoids explosion for rare species)
     per_species = []
     for i, sp in enumerate(target_cols):
         mae_sp = mean_absolute_error(y_true[:, i], y_pred[:, i])
         r2_sp = r2_score(y_true[:, i], y_pred[:, i])
         max_abun = y_true[:, i].max()
         mean_abun = y_true[:, i].mean()
-        # Average absolute fractional error: mean(|pred - true| / max(true, eps))
-        denom = np.maximum(y_true[:, i], EPS)
-        frac_err = np.abs(y_pred[:, i] - y_true[:, i]) / denom
-        aafe_sp = float(np.mean(frac_err))
+        # Average absolute fractional error: mean(|pred - true| / true) only for samples where true >= threshold
+        # (excluding very rare samples avoids huge fractional errors that dominate the mean)
+        mask = y_true[:, i] >= AAFE_THRESHOLD
+        if mask.sum() > 0:
+            denom = np.maximum(y_true[:, i][mask], EPS)
+            frac_err = np.abs(y_pred[:, i][mask] - y_true[:, i][mask]) / denom
+            aafe_sp = float(np.mean(frac_err))
+        else:
+            aafe_sp = float("nan")
         per_species.append(
             {
                 "species": sp,
@@ -173,15 +179,16 @@ def main() -> None:
         )
 
     df_species = pd.DataFrame(per_species)
-    # Global AAFE: mean of per-species AAFE (consistent across all outputs)
-    aafe_global = float(df_species["AAFE"].mean())
+    # Global AAFE: mean of per-species AAFE, excluding NaN (species with no samples above threshold)
+    aafe_valid = df_species["AAFE"].dropna()
+    aafe_global = float(aafe_valid.mean()) if len(aafe_valid) > 0 else float("nan")
 
     with open(OUT_DIR / "global_metrics.txt", "w") as f:
         f.write(f"Linear MAE:  {mae_linear:.6e}\n")
         f.write(f"Linear R²:   {r2_linear:.6f}\n")
         f.write(f"Log MAE:     {mae_log:.6e}\n")
         f.write(f"Log R²:      {r2_log:.6f}\n")
-        f.write(f"AAFE:        {aafe_global:.6f}\n")
+        f.write(f"AAFE:        {aafe_global:.6f}\n" if not np.isnan(aafe_global) else "AAFE:        nan\n")
         f.write(f"Test samples: {len(y_true)}\n")
         f.write(f"Species:     {len(target_cols)}\n")
 
@@ -340,15 +347,16 @@ def main() -> None:
     # Average absolute fractional error per species
     log.info("Generating AAFE per species plot...")
     fig, ax = plt.subplots(figsize=(12, 6))
-    df_aafe = df_species.sort_values("AAFE", ascending=False)
-    aafe_global = df_species["AAFE"].mean()
-    colors = ["red" if v > aafe_global else "steelblue" for v in df_aafe["AAFE"]]
+    df_aafe = df_species.sort_values("AAFE", ascending=False, na_position="last")
+    aafe_global_plot = aafe_global if not np.isnan(aafe_global) else df_aafe["AAFE"].dropna().mean()
+    colors = ["red" if (not np.isnan(v) and v > aafe_global_plot) else "steelblue" if not np.isnan(v) else "gray" for v in df_aafe["AAFE"]]
     ax.barh(range(len(df_aafe)), df_aafe["AAFE"], color=colors, alpha=0.7)
     ax.set_yticks(range(len(df_aafe)))
     ax.set_yticklabels(df_aafe["species"], fontsize=8)
-    ax.set_xlabel("Average Absolute Fractional Error (|pred−true|/true)", fontsize=11)
-    ax.set_title(f"AAFE per Species — Global average = {aafe_global:.4f} (Red = Above Average)", fontsize=12)
-    ax.axvline(aafe_global, color="black", linestyle="--", linewidth=1, label=f"Global AAFE = {aafe_global:.4f}")
+    ax.set_xlabel("Average Absolute Fractional Error (|pred−true|/true, true≥1e-10)", fontsize=11)
+    ax.set_title(f"AAFE per Species — Global average = {aafe_global_plot:.4f} (Red = Above Average)", fontsize=12)
+    if not np.isnan(aafe_global_plot):
+        ax.axvline(aafe_global_plot, color="black", linestyle="--", linewidth=1, label=f"Global AAFE = {aafe_global_plot:.4f}")
     ax.legend()
     ax.grid(True, alpha=0.3, axis="x")
     plt.tight_layout()

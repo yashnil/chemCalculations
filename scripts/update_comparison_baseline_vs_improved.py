@@ -16,6 +16,7 @@ Then run this script to update plots/comparison_metrics.csv and regenerate plots
 
 import csv
 import json
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -121,11 +122,20 @@ def main():
     print("BASELINE vs IMPROVED COMPARISON")
     print("=" * 80)
 
-    # Optionally run diagnostics on x4800_improved if it exists
+    # Run diagnostics on x4800_improved (best model) and copy scatter/parity plots to plots/
     improved_dir = RUNS_DIR / "runs_autoencoder_x4800_improved"
+    plots_dir = BASE_DIR / "plots"
     if improved_dir.exists() and (improved_dir / "best_model.py").exists():
-        print("\nRunning diagnostics on x4800_improved...")
+        print("\nRunning diagnostics on x4800_improved (best model)...")
         run_diagnostics("x4800_improved")
+        # Copy scatter/parity plots from x4800_improved diagnostics to plots/ so they represent the best model
+        diag_dir = improved_dir / "diagnostics"
+        for name in ["parity_overall.png", "parity_top10.png", "residual_vs_observed.png", "MAE_per_species.png", "error_distribution.png", "global_metrics.txt", "diagnostic_summary.txt"]:
+            src = diag_dir / name
+            if src.exists():
+                dst = plots_dir / name
+                shutil.copy2(src, dst)
+                print(f"  Copied {name} to plots/")
 
     print("\nCollecting metrics...")
     rows = []

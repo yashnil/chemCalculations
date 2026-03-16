@@ -32,7 +32,7 @@ import torch
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR / "src"))
-sys.path.insert(0, str(BASE_DIR / "results" / "runs" / "runs_autoencoder_x4800_optimal_retrained"))
+sys.path.insert(0, str(BASE_DIR / "results" / "runs" / "runs_autoencoder_x4800_improved"))
 
 import best_model as bm
 

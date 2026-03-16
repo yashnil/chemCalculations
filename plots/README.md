@@ -19,7 +19,7 @@ This directory contains figures and data files produced by the chemCalculations 
 **Purpose:** Mean Absolute Error (MAE) per species, sorted by error. Red bars indicate species above the global average. Helps identify which species the model struggles with most.
 
 ### `AAFE_per_species.png`
-**Purpose:** Average Absolute Fractional Error (AAFE) per species. AAFE = mean(|pred − true| / true) for each species. Red bars indicate above-average fractional error. Useful for understanding relative errors across species with very different abundance scales.
+**Purpose:** Average Absolute Fractional Error (AAFE) per species. AAFE = mean(|pred − true| / true) for each species, computed only for samples where true ≥ 1e-10 (avoids explosion for rare species). Red bars indicate above-average fractional error. Gray = species with no samples above threshold.
 
 ### `residual_vs_observed.png`
 **Purpose:** Residuals (predicted − true) vs. observed abundance. Hexbin density plot. Horizontal band around zero indicates good calibration across the abundance range.
@@ -74,6 +74,15 @@ This directory contains figures and data files produced by the chemCalculations 
 
 ### `model_comparison_bar.png`
 **Purpose:** Bar chart comparing multiple models (e.g. x800 through x4800) on key metrics.
+
+### `compare_x4800_three_metrics.png`
+**Purpose:** Bar chart comparing x4800_optimal_retrained (baseline), x4800_improved (best FlowMap), and x4800_mlp (6×1024 MLP) on test loss, Log MAE, and Log R².
+
+### `compare_x4800_three_parity.png`
+**Purpose:** 3-panel parity plot (predicted vs true) for each of the three x4800 models on the same test set. Direct visual comparison of prediction quality.
+
+### `compare_x4800_three_per_species.png`
+**Purpose:** Per-species Log MAE comparison for the top 20 species by abundance across the three x4800 models. Grouped bar chart.
 
 ---
 
