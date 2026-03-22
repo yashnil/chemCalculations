@@ -317,6 +317,9 @@ def plot_scatter_optimal_model(output_path: Path, run_tag: str = "x800_optimal_r
     log_y = np.log10(y_plot)
     log_mae = mean_absolute_error(log_x, log_y)
     log_r2 = r2_score(log_x, log_y)
+    from mfae_metrics import compute_mfae_from_arrays
+
+    mfae, _mf_med = compute_mfae_from_arrays(y_true, y_pred)
     
     # Create scatter plot
     fig, ax = plt.subplots(figsize=(10, 10))
@@ -351,7 +354,8 @@ def plot_scatter_optimal_model(output_path: Path, run_tag: str = "x800_optimal_r
     ax.set_yscale("log")
     ax.set_xlabel(r"True number density (cm$^{-3}$)", fontsize=12)
     ax.set_ylabel(r"Predicted number density (cm$^{-3}$)", fontsize=12)
-    ax.set_title(f"Predicted vs True: {best_run}\nLog MAE={log_mae:.4f} dex, Log R²={log_r2:.6f}", 
+    mfae_str = f", MFAE={mfae:.4f}" if not np.isnan(mfae) else ""
+    ax.set_title(f"Predicted vs True: {best_run}\nLog MAE={log_mae:.4f} dex, Log R²={log_r2:.6f}{mfae_str}", 
                  fontsize=14, fontweight="bold")
     ax.grid(True, alpha=0.3)
     ax.legend()

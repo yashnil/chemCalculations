@@ -27,6 +27,10 @@ RUNS_DIR = BASE_DIR / "results" / "runs"
 COMPARISON_CSV = BASE_DIR / "plots" / "comparison_metrics.csv"
 SRC_DIR = BASE_DIR / "src"
 
+if str(SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(SRC_DIR))
+from mfae_metrics import compute_mfae_for_run  # noqa: E402
+
 # Baseline (previous best) + improved (with 4 changes)
 COMPARISON_RUNS = [
     ("x800_optimal_retrained", 800000),
@@ -56,6 +60,8 @@ def parse_global_metrics(txt_path: Path) -> Dict[str, float]:
             metrics["log_r2"] = float(val_num)
         elif key == "AAFE":
             metrics["aafe"] = float(val.replace(",", " ").split()[0])
+        elif key == "MFAE":
+            metrics["mfae"] = float(val.replace(",", " ").split()[0])
     return metrics
 
 
@@ -78,6 +84,7 @@ def collect_metrics(run_tag: str, total_samples: int) -> Optional[Dict]:
         "test_loss": summary.get("test_loss", 0),
         "log_mae": gm.get("log_mae", summary.get("test_log_mae", summary.get("log_mae", ""))),
         "log_r2": gm.get("log_r2", summary.get("test_log_r2", summary.get("log_r2", ""))),
+        "mfae": gm.get("mfae", ""),
         "linear_mae": summary.get("test_mae_linear", ""),
         "linear_mse": summary.get("test_loss_linear", summary.get("test_mse_linear", "")),
     }
@@ -153,7 +160,27 @@ def main():
         print("No metrics found!")
         return
 
-    fieldnames = ["dataset", "total_samples", "val_loss", "test_loss", "log_mae", "log_r2", "linear_mae", "linear_mse"]
+    # MFAE: winsorized mean fractional error (see src/mfae_metrics.py); fill if missing from diagnostics
+    print("\nComputing MFAE (winsor mean |pred-true|/true over scatter dots)...")
+    for row in rows:
+        tag = row["dataset"]
+        need = True
+        if row.get("mfae") not in ("", None):
+            try:
+                float(row["mfae"])
+                need = False
+            except (TypeError, ValueError):
+                pass
+        if not need:
+            continue
+        m = compute_mfae_for_run(tag)
+        if m is not None:
+            row["mfae"] = m
+            print(f"  {tag}: MFAE={m:.6f}")
+        else:
+            print(f"  {tag}: MFAE= (could not compute)")
+
+    fieldnames = ["dataset", "total_samples", "val_loss", "test_loss", "log_mae", "log_r2", "mfae", "linear_mae", "linear_mse"]
     with open(COMPARISON_CSV, "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()

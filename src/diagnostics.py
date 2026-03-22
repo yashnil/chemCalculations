@@ -31,6 +31,8 @@ except ImportError:
     HAS_SCIPY = False
     warnings.warn("scipy not found; KDE density coloring disabled")
 
+from mfae_metrics import WINSOR_CAP, compute_mfae_from_arrays
+
 # -----------------------------------------------------------------------------
 # Configuration
 # -----------------------------------------------------------------------------
@@ -183,12 +185,24 @@ def main() -> None:
     aafe_valid = df_species["AAFE"].dropna()
     aafe_global = float(aafe_valid.mean()) if len(aafe_valid) > 0 else float("nan")
 
+    # MFAE: mean |pred-true|/true over scatter dots; winsorized mean + median (see mfae_metrics.py)
+    mfae, mfae_median = compute_mfae_from_arrays(y_true, y_pred, AAFE_THRESHOLD, WINSOR_CAP)
+
+    log.info(
+        "  MFAE (winsor mean cap=%s): %s; median: %s",
+        WINSOR_CAP,
+        fmt(mfae) if not np.isnan(mfae) else "nan",
+        fmt(mfae_median) if not np.isnan(mfae_median) else "nan",
+    )
+
     with open(OUT_DIR / "global_metrics.txt", "w") as f:
         f.write(f"Linear MAE:  {mae_linear:.6e}\n")
         f.write(f"Linear R²:   {r2_linear:.6f}\n")
         f.write(f"Log MAE:     {mae_log:.6e}\n")
         f.write(f"Log R²:      {r2_log:.6f}\n")
         f.write(f"AAFE:        {aafe_global:.6f}\n" if not np.isnan(aafe_global) else "AAFE:        nan\n")
+        f.write(f"MFAE:        {mfae:.6f}\n" if not np.isnan(mfae) else "MFAE:        nan\n")
+        f.write(f"MFAE_median: {mfae_median:.6f}\n" if not np.isnan(mfae_median) else "MFAE_median: nan\n")
         f.write(f"Test samples: {len(y_true)}\n")
         f.write(f"Species:     {len(target_cols)}\n")
 
@@ -317,7 +331,8 @@ def main() -> None:
     ax.set_ylim(lims)
     ax.set_xlabel(f"True {ABUNDANCE_LABEL}", fontsize=12)
     ax.set_ylabel(f"Predicted {ABUNDANCE_LABEL}", fontsize=12)
-    ax.set_title("Overall Parity: All Species Pooled", fontsize=13)
+    mfae_str = f" (MFAE={mfae:.4f})" if not np.isnan(mfae) else ""
+    ax.set_title(f"Overall Parity: All Species Pooled{mfae_str}", fontsize=13)
     ax.legend(fontsize=10)
     ax.grid(True, alpha=0.3, which="both")
 
@@ -479,6 +494,8 @@ def main() -> None:
         f.write(f"Log MAE (dex):     {mae_log:.6e}\n")
         f.write(f"Log R²:            {r2_log:.6f}\n")
         f.write(f"AAFE:              {aafe_global:.6f}\n")
+        f.write(f"MFAE:              {mfae:.6f}  (mean |pred-true|/true, winsor cap {WINSOR_CAP} per pair)\n" if not np.isnan(mfae) else "MFAE:              nan\n")
+        f.write(f"MFAE_median:       {mfae_median:.6f}\n" if not np.isnan(mfae_median) else "MFAE_median:       nan\n")
         f.write(f"Test samples:      {len(y_true):,}\n")
         f.write(f"Species predicted: {len(target_cols)}\n\n")
 

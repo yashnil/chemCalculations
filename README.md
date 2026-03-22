@@ -7,30 +7,45 @@ A high-performance machine learning surrogate model for chemical equilibrium cal
 [![Status](https://img.shields.io/badge/status-study--complete-brightgreen)](https://github.com/yashnil/chemCalculations)
 [![Log R²](https://img.shields.io/badge/Log_R²-0.9999-brightgreen)](https://github.com/yashnil/chemCalculations)
 
-**Status: Study Complete** (6 baseline + 1 improved model trained)  
-**Best Model Performance**: Log R² = 0.9999, Log MAE = 0.0039 dex, **~1,500× faster** on GPU / ~250× on CPU (measured)  
-**Best Model**: x4800_improved (4800K samples, AdamW + train-only normalization, FlowMap architecture)  
+**Status: Study Complete** (6 baseline + 1 improved + 1 MLP comparison)  
+**Best Model Performance (x4800_improved)**: Log R² ≈ 0.9999, Log MAE ≈ 0.00391 dex, **MFAE ≈ 0.0105** (winsorized mean fractional error; see [Performance Metrics](#performance-metrics)), **~1,500× faster** on GPU / ~250× on CPU (measured)  
+**Best Model**: **x4800_improved** (4.8M samples, AdamW + train-only normalization, FlowMap architecture)  
 **Study Design**: 800K increments (800, 1600, 2400, 3200, 4000, 4800) — asymptotic behavior confirmed
 
-**Improvement**: x4800_improved achieves ~51% lower test loss and ~71% lower Log MAE than x4800_optimal_retrained (same FlowMap architecture).
+**Improvement vs baseline (x4800_optimal_retrained)**: ~51% lower test loss, ~71% lower Log MAE, ~41% lower MFAE (same FlowMap architecture, improved training recipe).
+
+---
+
+## At a glance (first visit)
+
+| Topic | Where to look |
+|--------|----------------|
+| **What this is** | Neural network emulator: predicts **gas-phase number densities** (33 species, cm⁻³) from **T, P, and 5 elemental abundances (dex)**—trained to match [FastChem](https://github.com/exoclime/FastChem). |
+| **Best reported model** | **`x4800_improved`** — metrics in [`plots/comparison_metrics.csv`](plots/comparison_metrics.csv), figures described in [`plots/README.md`](plots/README.md). |
+| **Install** | Python **3.9+**, **PyTorch 2+**: `pip install -r requirements.txt`. **`pyfastchem`** is required for generating training data and FastChem validation scripts; inference of a trained net uses only PyTorch + NumPy/Pandas. |
+| **Trained checkpoints** | Checkpoints, `best.pt`, and `best_model.py` are written under **`results/runs/<run_name>/`** when you train. That folder is **gitignored**—a plain `git clone` does **not** include weights. Train locally ([Quick Start](#quick-start)) or supply your own run directory. |
+| **Inference pattern** | Add `results/runs/runs_autoencoder_x4800_improved` to `sys.path`, then `from best_model import load_model, ...` — see [Quick Start](#quick-start). |
+
+**Navigation:** [Problem statement](#problem-statement) · [Performance metrics](#performance-metrics) · [Project structure](#project-structure) · [Quick Start](#quick-start) · [Citation](#citation)
 
 ---
 
 ## Table of Contents
 
-1. [Problem Statement](#problem-statement)
-2. [Project Goals](#project-goals)
-3. [Solution Overview](#solution-overview)
-4. [Performance Metrics](#performance-metrics)
-5. [Project Structure](#project-structure)
-6. [Quick Start](#quick-start)
-7. [Model Architecture](#model-architecture)
-8. [Methods](#methods)
-9. [Diagnostics](#diagnostics)
-10. [Usage Examples](#usage-examples)
-11. [Technical Details](#technical-details)
-12. [Citation](#citation)
-13. [Contact](#contact)
+1. [At a glance (first visit)](#at-a-glance-first-visit)
+2. [Problem Statement](#problem-statement)
+3. [Project Goals](#project-goals)
+4. [Solution Overview](#solution-overview)
+5. [Performance Metrics](#performance-metrics)
+6. [Project Structure](#project-structure)
+7. [Quick Start](#quick-start)
+8. [Model Architecture](#model-architecture)
+9. [Methods](#methods)
+10. [Diagnostics](#diagnostics)
+11. [Usage Examples](#usage-examples)
+12. [Technical Details](#technical-details)
+13. [Citation](#citation)
+14. [Contact](#contact)
 
 ---
 
@@ -155,12 +170,21 @@ We replace the iterative FastChem solver with a **trained neural network** that:
 - **Model**: x4800_improved (FlowMapAutoencoder with AdamW + train-only normalization)
 - **Test Loss**: 7.27×10⁻³ (normalized log_ratio space)
 - **Validation Loss**: 7.65×10⁻³
-- **Log MAE**: 0.0039 dex (mean absolute error in log₁₀ space)
+- **Log MAE**: 0.00391 dex (mean absolute error in log₁₀ space on test set)
 - **Log R²**: 0.9999 (99.99% variance explained in log space)
+- **MFAE**: **0.01047** — mean fractional absolute error over parity/scatter points (both true & pred > 10⁻¹⁰ cm⁻³); each pair’s \|pred−true\|/true is capped at **2.0** before averaging (winsorized mean). See `src/mfae_metrics.py` and `plots/comparison_metrics.csv`.
 - **Dataset Size**: 4,800,000 samples
 - **Architecture**: latent_dim=192, width=512, layers=3, SiLU activation
 - **Species**: 33 species (32 + e-) with static ordering (99.68% coverage)
 - **Training**: AdamW optimizer, train-only normalization (no eval-time normalization)
+
+**x4800 comparison (same data scale, test-set metrics)** — from `plots/comparison_metrics.csv` (regenerate via `python scripts/update_comparison_baseline_vs_improved.py`):
+
+| Run | Test loss | Log MAE (dex) | Log R² | MFAE |
+|-----|-----------|---------------|--------|------|
+| x4800_optimal_retrained (baseline FlowMap) | 1.47×10⁻² | 0.0137 | 0.9996 | 0.0179 |
+| **x4800_improved** (best) | **7.27×10⁻³** | **0.00391** | **0.9999** | **0.0105** |
+| x4800_mlp (6×1024 MLP baseline) | 0.142 | 0.085 | 0.9992 | 0.326 |
 
 **Performance vs Dataset Size** (800K increments, consistent architecture):
 
@@ -281,7 +305,7 @@ We conducted three systematic hyperparameter studies to identify optimal model c
 - Log MAE decreases from 0.0248 dex (800K) to 0.0137 dex (4800K) — **45% improvement**
 - x3200, x4000, x4800 form a tight cluster (Log MAE 0.0137–0.0149), confirming asymptotic plateau
 - Architecture capacity limit reached; further data provides diminishing returns
-- **Best model**: x4800_optimal_retrained (4800K samples, Log MAE = 0.0137)
+- **Best baseline-only run (asymptote study)**: x4800_optimal_retrained (4800K samples, Log MAE ≈ 0.0137). **Production best overall**: **x4800_improved** (Log MAE ≈ 0.00391, MFAE ≈ 0.0105).
 
 **Plots**: 
 - `plots/performance_vs_size.png` - Main performance metrics
@@ -347,6 +371,7 @@ chemCalculations/
 │   ├── train_autoencoder.py       # Main training script (baseline)
 │   ├── train_autoencoder_improved.py  # Improved training (AdamW, train-only norm, optional MLP)
 │   ├── autoencoder_model.py       # FlowMapAutoencoder + SimpleMLP architectures
+│   ├── mfae_metrics.py            # Mean fractional error (MFAE) for comparison_metrics / diagnostics
 │   ├── diagnostics.py             # Comprehensive diagnostic suite
 │   ├── make_comparison_metrics.py # Collect metrics across dataset sizes
 │   ├── plot_full_suite.py         # Comprehensive plot generation
@@ -356,14 +381,15 @@ chemCalculations/
 │   ├── plot_latent_dim_results.py # Latent dimension study plots
 │   └── plot_layer_width_results.py # Layer width study plots
 │
-├── results/runs/                   # Trained models (800K-increment study)
+├── results/runs/                   # Trained models (NOT in git — see At a glance)
 │   ├── runs_autoencoder_x800_optimal_retrained/
 │   ├── runs_autoencoder_x1600_optimal_retrained/
 │   ├── runs_autoencoder_x2400_optimal_retrained/
 │   ├── runs_autoencoder_x3200_optimal_retrained/
 │   ├── runs_autoencoder_x4000_optimal_retrained/
 │   ├── runs_autoencoder_x4800_optimal_retrained/
-│   └── runs_autoencoder_x4800_improved/  # Best model (AdamW, train-only norm)
+│   ├── runs_autoencoder_x4800_improved/   # Target dir for best model training
+│   └── runs_autoencoder_x4800_mlp/         # Optional MLP baseline
 │
 ├── plots/                          # Visualization outputs
 │   ├── comparison_metrics.csv     # Performance metrics for all models
@@ -383,7 +409,9 @@ chemCalculations/
 │
 ├── scripts/                        # Utility scripts
 │   ├── data_generation/           # FastChem job generation and merging
-│   ├── update_comparison_baseline_vs_improved.py  # Update comparison_metrics.csv
+│   ├── update_comparison_baseline_vs_improved.py  # Metrics CSV + regenerate key plots
+│   ├── plot_compare_x4800_three.py # Baseline vs improved vs MLP comparison figures
+│   ├── plot_fastchem_style.py     # Mixing-ratio vs T / T–P heatmaps
 │   ├── independent_validation.py  # Independent validation vs FastChem
 │   ├── benchmark_fastchem_speed.py # FastChem vs ML speed comparison
 │   ├── fast_inference.py          # Optimized inference (CPU vs MPS GPU)
@@ -403,6 +431,8 @@ chemCalculations/
 ```bash
 pip install -r requirements.txt
 ```
+
+Core stack: **torch**, **numpy**, **pandas**, **scikit-learn**, **matplotlib**, **scipy**, **tqdm**. **`pyfastchem`** is listed for data generation and validation scripts that call FastChem; it is not required only to run forward inference on an existing `best_model.py` / checkpoint if you already have a trained run directory.
 
 ### Training a Model
 
@@ -427,9 +457,11 @@ python src/diagnostics.py
 
 ### Using the Trained Model
 
+Requires a completed training run so that `results/runs/runs_autoencoder_x4800_improved/best_model.py` (and `best.pt`) exist.
+
 ```python
 import sys
-sys.path.append('results/runs/runs_autoencoder_x4800_improved')  # Best model
+sys.path.append('results/runs/runs_autoencoder_x4800_improved')  # Best model (after training)
 
 from best_model import load_model, normalize_inputs, forward_autoencoder, denormalize_targets, TARGET_COLS
 import pandas as pd
@@ -1325,14 +1357,14 @@ furnished to do so.
 
 - **Problem**: FastChem too slow (~1.3 ms/call measured, engine reuse) for modern applications requiring millions to billions of evaluations
 - **Solution**: Neural network emulator with FlowMapAutoencoder architecture, optimized for CPU and GPU inference
-- **Result**: ~1,500× faster on GPU (~250× on CPU) with excellent accuracy (Log R² = 0.9999, Log MAE = 0.0039 dex)
+- **Result**: ~1,500× faster on GPU (~250× on CPU) with excellent accuracy (Log R² ≈ 0.9999, Log MAE ≈ 0.00391 dex, MFAE ≈ 0.0105)
 - **Impact**: Enables JWST/HST retrievals, 3D GCMs, and population studies that were previously infeasible
 - **Scalability**: Performance improves with dataset size (tested 800K–4800K, achieving 45% Log MAE improvement with clear asymptotic plateau at ~3200K)
-- **Improvement**: x4800_improved (AdamW + train-only norm) achieves ~71% lower Log MAE than baseline
+- **Improvement**: x4800_improved (AdamW + train-only norm) achieves ~71% lower Log MAE and ~41% lower MFAE than x4800_optimal_retrained
 
 **Current status**: Study complete, production-ready, validated, and recommended for all use cases.
 
-**Best model**: x4800_improved (4800K samples) — see `results/runs/runs_autoencoder_x4800_improved/`
+**Best model**: **x4800_improved** (4.8M samples) — metrics in [Performance Metrics](#performance-metrics); artifacts in `results/runs/runs_autoencoder_x4800_improved/` and `plots/comparison_metrics.csv`
 
 **Get started**: 
 ```bash

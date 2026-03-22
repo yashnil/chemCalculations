@@ -4,6 +4,22 @@ This directory contains figures and data files produced by the chemCalculations 
 
 ---
 
+## Best model snapshot (x4800_improved)
+
+Values below match `scripts/update_comparison_baseline_vs_improved.py` / `comparison_metrics.csv` (regenerate to refresh).
+
+| Metric | Value |
+|--------|--------|
+| **Run** | `x4800_improved` |
+| **Test loss** | ≈ 7.27×10⁻³ |
+| **Log MAE** | ≈ 0.00391 dex |
+| **Log R²** | ≈ 0.9999 |
+| **MFAE** | ≈ **0.0105** (winsorized mean \|pred−true\|/true over scatter dots; cap 2.0 per pair) |
+
+**Reference (same 4800K-scale test set):** x4800_optimal_retrained MFAE ≈ 0.0179; x4800_mlp MFAE ≈ 0.33.
+
+---
+
 ## Model Performance & Diagnostics
 
 ### `parity_overall.png`
@@ -13,7 +29,7 @@ This directory contains figures and data files produced by the chemCalculations 
 **Purpose:** Parity plots for the 10 most abundant species individually. Each subplot shows predicted vs. true for one species. Useful for spotting species-specific biases.
 
 ### `scatter_optimal_model.png`
-**Purpose:** Scatter plot of predicted vs. observed abundances for the best model (typically x4800_improved). Includes Log MAE and Log R² in the title.
+**Purpose:** Scatter plot of predicted vs. observed abundances for the best model (**x4800_improved**). Title includes Log MAE, Log R², and MFAE (winsorized mean fractional error).
 
 ### `MAE_per_species.png`
 **Purpose:** Mean Absolute Error (MAE) per species, sorted by error. Red bars indicate species above the global average. Helps identify which species the model struggles with most.
@@ -105,10 +121,12 @@ This directory contains figures and data files produced by the chemCalculations 
 ## Data Files
 
 ### `global_metrics.txt`
-**Purpose:** Summary of global metrics for the best model: Linear MAE, Linear R², Log MAE, Log R², AAFE, test sample count, species count.
+**Purpose:** Summary of global metrics for the diagnostic run (copied from **x4800_improved** when using `update_comparison_baseline_vs_improved.py`): Linear MAE, Linear R², Log MAE, Log R², AAFE, **MFAE**, **MFAE_median**, test sample count, species count.
 
 ### `comparison_metrics.csv`
-**Purpose:** Aggregated metrics for all compared runs (dataset, val_loss, test_loss, log_mae, log_r2, etc.). Used by comparison and scaling plots.
+**Purpose:** Aggregated metrics for all compared runs (dataset, val_loss, test_loss, log_mae, log_r2, **mfae**, etc.). Used by comparison and scaling plots.
+
+**`mfae`:** Mean fractional absolute error over all parity/scatter points where both true and predicted abundance exceed 1e−10 cm⁻³: mean of \|pred−true\|/true, with each pair capped at 2.0 before averaging (winsorized mean) so a few catastrophic outliers do not dominate the value. Raw arithmetic mean of the same fractions is unstable. See `src/mfae_metrics.py`. Diagnostics also report **MFAE_median** (typical fractional error per point).
 
 ### `per_species_errors.csv`
 **Purpose:** Per-species metrics: MAE, R², AAFE, max/mean abundance for each predicted species.
