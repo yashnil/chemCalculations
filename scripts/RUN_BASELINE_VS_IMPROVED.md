@@ -10,7 +10,7 @@ Compare the **previous best** (x4800_optimal_retrained) with the **improved** mo
 ## Step 1: Train the improved model
 
 ```bash
-python src/train_autoencoder_improved.py \
+python -m chemcalculations.train_autoencoder_improved \
   --config configs/x4800_improved.json \
   --run-dir results/runs/runs_autoencoder_x4800_improved
 ```
@@ -25,7 +25,7 @@ For the baseline (if not already done):
 CSV_PATH=data/datasets/all_gas_fastchem_x4800.csv \
 BEST_MODULE=results/runs/runs_autoencoder_x4800_optimal_retrained/best_model.py \
 OUT_DIR=results/runs/runs_autoencoder_x4800_optimal_retrained/diagnostics \
-  python src/diagnostics.py
+  python -m chemcalculations.diagnostics
 ```
 
 For the improved model (run from project root):
@@ -34,7 +34,7 @@ For the improved model (run from project root):
 CSV_PATH=data/datasets/all_gas_fastchem_x4800.csv \
 BEST_MODULE=results/runs/runs_autoencoder_x4800_improved/best_model.py \
 OUT_DIR=results/runs/runs_autoencoder_x4800_improved/diagnostics \
-  python src/diagnostics.py
+  python -m chemcalculations.diagnostics
 ```
 
 Or use the comparison script (runs diagnostics on x4800_improved automatically):
@@ -62,6 +62,6 @@ This writes `plots/comparison_metrics.csv` with both x4800_optimal_retrained and
 
 | File | Purpose |
 |------|---------|
-| `src/train_autoencoder_improved.py` | Improved trainer (4 changes) |
+| `chemcalculations.train_autoencoder_improved` | Improved trainer (4 changes) |
 | `configs/x4800_improved.json` | Config for improved model (same as x4800_optimal + AdamW) |
 | `scripts/update_comparison_baseline_vs_improved.py` | Build comparison CSV and regenerate plots |

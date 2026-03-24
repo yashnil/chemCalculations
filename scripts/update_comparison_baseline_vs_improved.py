@@ -8,7 +8,8 @@ Build comparison_metrics.csv with BOTH:
   - x4800_improved (AdamW, train-only norm, correct loss naming)
 
 Run after:
-  1. Train improved: python src/train_autoencoder_improved.py --config configs/x4800_improved.json --run-dir results/runs/runs_autoencoder_x4800_improved
+  1. Install: pip install -e ".[fastchem]"  (from repo root)
+  2. Train improved: python -m chemcalculations.train_autoencoder_improved --config configs/x4800_improved.json --run-dir results/runs/runs_autoencoder_x4800_improved
   2. Run diagnostics on both (run_diagnostics_all_optimal_retrained.py or manually for x4800_improved)
 
 Then run this script to update plots/comparison_metrics.csv and regenerate plots.
@@ -29,7 +30,7 @@ SRC_DIR = BASE_DIR / "src"
 
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
-from mfae_metrics import compute_mfae_for_run  # noqa: E402
+from chemcalculations.mfae_metrics import compute_mfae_for_run  # noqa: E402
 
 # Baseline (previous best) + improved (with 4 changes)
 COMPARISON_RUNS = [
@@ -105,15 +106,18 @@ def run_diagnostics(run_tag: str) -> bool:
         return False
 
     import os
+
     env = os.environ.copy()
     env["CSV_PATH"] = str(csv_path)
     env["BEST_MODULE"] = str(best_model_path)
     env["OUT_DIR"] = str(diag_dir)
+    pp = env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = str(SRC_DIR) if not pp else f"{SRC_DIR}{os.pathsep}{pp}"
 
     result = subprocess.run(
-        [sys.executable, str(SRC_DIR / "diagnostics.py")],
+        [sys.executable, "-m", "chemcalculations.diagnostics"],
         env=env,
-        cwd=str(SRC_DIR),
+        cwd=str(BASE_DIR),
         capture_output=True,
         text=True,
     )

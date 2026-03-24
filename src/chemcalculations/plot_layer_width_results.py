@@ -14,7 +14,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import pandas as pd
 
-BASE_DIR = Path(__file__).resolve().parent
+BASE_DIR = Path(__file__).resolve().parent.parent
 
 
 def collect_results(widths: list[int], num_layers_list: list[int]) -> list[dict]:

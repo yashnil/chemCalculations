@@ -8,19 +8,16 @@ This matches "average of all the dots" in parity/scatter plots (same threshold a
 from __future__ import annotations
 
 import importlib.util
-import sys
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import torch
 
-BASE_DIR = Path(__file__).resolve().parent.parent
-SRC_DIR = BASE_DIR / "src"
-RUNS_DIR = BASE_DIR / "results" / "runs"
+from chemcalculations._paths import project_root as repo_root
 
-if str(SRC_DIR) not in sys.path:
-    sys.path.insert(0, str(SRC_DIR))
+BASE_DIR = repo_root()
+RUNS_DIR = BASE_DIR / "results" / "runs"
 
 DEFAULT_THRESHOLD = 1e-10  # same as diagnostics.AAFE_THRESHOLD
 # Cap each pair's fractional error before averaging — raw mean is dominated by rare

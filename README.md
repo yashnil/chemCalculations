@@ -4,6 +4,7 @@ A high-performance machine learning surrogate model for chemical equilibrium cal
 
 [![Python](https://img.shields.io/badge/python-3.9%2B-blue)](https://www.python.org/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.0%2B-red)](https://pytorch.org/)
+[![PyPI](https://img.shields.io/pypi/v/chemcalculations.svg?label=PyPI)](https://pypi.org/project/chemcalculations/)
 [![Status](https://img.shields.io/badge/status-study--complete-brightgreen)](https://github.com/yashnil/chemCalculations)
 [![Log R²](https://img.shields.io/badge/Log_R²-0.9999-brightgreen)](https://github.com/yashnil/chemCalculations)
 
@@ -22,7 +23,7 @@ A high-performance machine learning surrogate model for chemical equilibrium cal
 |--------|----------------|
 | **What this is** | Neural network emulator: predicts **gas-phase number densities** (33 species, cm⁻³) from **T, P, and 5 elemental abundances (dex)**—trained to match [FastChem](https://github.com/exoclime/FastChem). |
 | **Best reported model** | **`x4800_improved`** — metrics in [`plots/comparison_metrics.csv`](plots/comparison_metrics.csv), figures described in [`plots/README.md`](plots/README.md). |
-| **Install** | Python **3.9+**, **PyTorch 2+**: `pip install -r requirements.txt`. **`pyfastchem`** is required for generating training data and FastChem validation scripts; inference of a trained net uses only PyTorch + NumPy/Pandas. |
+| **Install** | **From PyPI:** [`pip install chemcalculations`](https://pypi.org/project/chemcalculations/) — [project page](https://pypi.org/project/chemcalculations/). **From source:** `pip install -e ".[fastchem]"` or `pip install -e .`. See [Quick Start](#quick-start). |
 | **Trained checkpoints** | Checkpoints, `best.pt`, and `best_model.py` are written under **`results/runs/<run_name>/`** when you train. That folder is **gitignored**—a plain `git clone` does **not** include weights. Train locally ([Quick Start](#quick-start)) or supply your own run directory. |
 | **Inference pattern** | Add `results/runs/runs_autoencoder_x4800_improved` to `sys.path`, then `from best_model import load_model, ...` — see [Quick Start](#quick-start). |
 
@@ -172,7 +173,7 @@ We replace the iterative FastChem solver with a **trained neural network** that:
 - **Validation Loss**: 7.65×10⁻³
 - **Log MAE**: 0.00391 dex (mean absolute error in log₁₀ space on test set)
 - **Log R²**: 0.9999 (99.99% variance explained in log space)
-- **MFAE**: **0.01047** — mean fractional absolute error over parity/scatter points (both true & pred > 10⁻¹⁰ cm⁻³); each pair’s \|pred−true\|/true is capped at **2.0** before averaging (winsorized mean). See `src/mfae_metrics.py` and `plots/comparison_metrics.csv`.
+- **MFAE**: **0.01047** — mean fractional absolute error over parity/scatter points (both true & pred > 10⁻¹⁰ cm⁻³); each pair’s \|pred−true\|/true is capped at **2.0** before averaging (winsorized mean). See `src/chemcalculations/mfae_metrics.py` and `plots/comparison_metrics.csv`.
 - **Dataset Size**: 4,800,000 samples
 - **Architecture**: latent_dim=192, width=512, layers=3, SiLU activation
 - **Species**: 33 species (32 + e-) with static ordering (99.68% coverage)
@@ -367,19 +368,25 @@ We conducted three systematic hyperparameter studies to identify optimal model c
 ```
 chemCalculations/
 │
-├── src/                            # Source code
-│   ├── train_autoencoder.py       # Main training script (baseline)
-│   ├── train_autoencoder_improved.py  # Improved training (AdamW, train-only norm, optional MLP)
-│   ├── autoencoder_model.py       # FlowMapAutoencoder + SimpleMLP architectures
-│   ├── mfae_metrics.py            # Mean fractional error (MFAE) for comparison_metrics / diagnostics
-│   ├── diagnostics.py             # Comprehensive diagnostic suite
-│   ├── make_comparison_metrics.py # Collect metrics across dataset sizes
-│   ├── plot_full_suite.py         # Comprehensive plot generation
-│   ├── plot_comprehensive_analysis.py  # Asymptote analysis plots
-│   ├── plot_baseline_vs_improved.py   # Baseline vs x4800_improved comparison
-│   ├── plot_training_analysis.py  # Training curves and performance
-│   ├── plot_latent_dim_results.py # Latent dimension study plots
-│   └── plot_layer_width_results.py # Layer width study plots
+├── pyproject.toml                  # Package metadata & dependencies (pip / PyPI)
+├── LICENSE                         # MIT
+├── src/
+│   └── chemcalculations/           # Installable Python package (import chemcalculations)
+│       ├── __init__.py
+│       ├── _paths.py               # project_root()
+│       ├── autoencoder_model.py    # FlowMapAutoencoder + SimpleMLP
+│       ├── mfae_metrics.py         # MFAE for comparison_metrics / diagnostics
+│       ├── train_autoencoder.py
+│       ├── train_autoencoder_improved.py
+│       ├── diagnostics.py
+│       ├── make_comparison_metrics.py
+│       ├── plot_full_suite.py
+│       ├── plot_comprehensive_analysis.py
+│       ├── plot_baseline_vs_improved.py
+│       ├── plot_training_analysis.py
+│       ├── plot_latent_dim_results.py
+│       └── plot_layer_width_results.py
+├── tests/                          # pytest smoke tests
 │
 ├── results/runs/                   # Trained models (NOT in git — see At a glance)
 │   ├── runs_autoencoder_x800_optimal_retrained/
@@ -418,7 +425,7 @@ chemCalculations/
 │   ├── export_onnx.py             # ONNX export and benchmark
 │   └── setup_fastchem_env.sh      # FastChem environment setup
 │
-├── requirements.txt                # Python dependencies
+├── requirements.txt                # Legacy pin list; canonical deps in pyproject.toml
 └── README.md                       # This file
 ```
 
@@ -428,22 +435,48 @@ chemCalculations/
 
 ### Prerequisites
 
+From the repository root, install the package in editable mode (recommended for development):
+
 ```bash
-pip install -r requirements.txt
+# Core emulator + training (PyTorch, numpy, pandas, sklearn, matplotlib, scipy, tqdm)
+pip install -e .
+
+# Optional: include pyfastchem for data generation and FastChem-backed validation scripts
+pip install -e ".[fastchem]"
+
+# Dev: tests
+pip install -e ".[dev]"
 ```
 
-Core stack: **torch**, **numpy**, **pandas**, **scikit-learn**, **matplotlib**, **scipy**, **tqdm**. **`pyfastchem`** is listed for data generation and validation scripts that call FastChem; it is not required only to run forward inference on an existing `best_model.py` / checkpoint if you already have a trained run directory.
+You can still use `pip install -r requirements.txt` as a loose mirror of core versions; **`pyproject.toml`** is the canonical dependency list for packaging.
+
+Core stack: **torch**, **numpy**, **pandas**, **scikit-learn**, **matplotlib**, **scipy**, **tqdm**. **`pyfastchem`** is only needed for generating training data and scripts that call FastChem; forward inference on an existing `best_model.py` / checkpoint does not require it.
+
+After `pip install -e .`, console entry points are available: **`chemcalc-train`**, **`chemcalc-train-improved`**, **`chemcalc-diagnostics`** (same as `python -m chemcalculations...`).
+
+### Running tests
+
+```bash
+pip install -e ".[dev]"
+pytest
+```
+
+`tests/conftest.py` sets `KMP_DUPLICATE_LIB_OK` and thread limits before PyTorch loads, which avoids a rare **Fatal Python error: Aborted** on macOS when OpenMP/BLAS runtimes clash. If you still see an abort, try `export KMP_DUPLICATE_LIB_OK=TRUE` in your shell before `pytest`.
+
+### Publishing to PyPI
+
+Maintainers: install tools with `pip install -e ".[release]"`, bump `version` in `pyproject.toml`, run `python -m build`, then `twine upload dist/*` (after [PyPI](https://pypi.org/) account + API token). Full checklist: **[`RELEASING.md`](RELEASING.md)**. Published package: **[chemcalculations on PyPI](https://pypi.org/project/chemcalculations/)**.
 
 ### Training a Model
 
 ```bash
 # Train best model (x4800_improved) — AdamW, train-only normalization
-python src/train_autoencoder_improved.py \
+python -m chemcalculations.train_autoencoder_improved \
     --config configs/x4800_improved.json \
     --run-dir results/runs/runs_autoencoder_x4800_improved
 
 # Or train baseline with original script
-python src/train_autoencoder.py \
+python -m chemcalculations.train_autoencoder \
     --config configs/x4800_optimal_retrained.json \
     --loss-type log_ratio \
     --run-dir results/runs/runs_autoencoder_x4800_optimal_retrained
@@ -452,7 +485,7 @@ python src/train_autoencoder.py \
 CSV_PATH=data/datasets/all_gas_fastchem_x4800.csv \
 BEST_MODULE=results/runs/runs_autoencoder_x4800_improved/best_model.py \
 OUT_DIR=results/runs/runs_autoencoder_x4800_improved/diagnostics \
-python src/diagnostics.py
+python -m chemcalculations.diagnostics
 ```
 
 ### Using the Trained Model
@@ -1099,7 +1132,7 @@ See [Performance Metrics](#performance-metrics) section for detailed hyperparame
 
 ### Overview
 
-The diagnostics suite (`src/diagnostics.py`) provides comprehensive validation of model performance, generating publication-ready plots and detailed error analysis.
+The diagnostics suite (`chemcalculations.diagnostics`) provides comprehensive validation of model performance, generating publication-ready plots and detailed error analysis.
 
 ### Running Diagnostics
 
@@ -1110,7 +1143,8 @@ export BEST_MODULE="results/runs/runs_autoencoder_x4800_optimal_retrained/best_m
 export OUT_DIR="results/runs/runs_autoencoder_x4800_optimal_retrained/diagnostics"
 
 # Run diagnostics
-python src/diagnostics.py
+python -m chemcalculations.diagnostics
+# or: chemcalc-diagnostics
 ```
 
 ### Diagnostic Outputs

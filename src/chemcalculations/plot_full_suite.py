@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import argparse
 import importlib.util
-import sys
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -25,7 +24,9 @@ import pandas as pd
 import torch
 from sklearn.metrics import mean_absolute_error, r2_score
 
-BASE_DIR = Path(__file__).resolve().parent.parent
+from chemcalculations._paths import project_root as repo_root
+
+BASE_DIR = repo_root()
 RUNS_DIR = BASE_DIR / "results" / "runs"
 PLOTS_DIR = BASE_DIR / "plots"
 COMPARISON_CSV = PLOTS_DIR / "comparison_metrics.csv"
@@ -41,11 +42,6 @@ OPTIMAL_RETRAINED_RUNS = [
 ]
 # Best model: prefer improved, else largest optimal_retrained
 BEST_MODEL_RUNS = ["x4800_improved"] + list(reversed(OPTIMAL_RETRAINED_RUNS))
-
-# Add src/ to path
-SRC_DIR = BASE_DIR / "src"
-if str(SRC_DIR) not in sys.path:
-    sys.path.insert(0, str(SRC_DIR))
 
 plt.style.use("seaborn-v0_8-darkgrid")
 COLORS = plt.cm.tab10(np.linspace(0, 1, 10))
@@ -317,7 +313,7 @@ def plot_scatter_optimal_model(output_path: Path, run_tag: str = "x800_optimal_r
     log_y = np.log10(y_plot)
     log_mae = mean_absolute_error(log_x, log_y)
     log_r2 = r2_score(log_x, log_y)
-    from mfae_metrics import compute_mfae_from_arrays
+    from chemcalculations.mfae_metrics import compute_mfae_from_arrays
 
     mfae, _mf_med = compute_mfae_from_arrays(y_true, y_pred)
     
@@ -551,7 +547,10 @@ def main():
     # 6. Baseline vs improved comparison (x4800)
     print("\n6. Generating baseline vs improved comparison plots...")
     try:
-        from plot_baseline_vs_improved import plot_baseline_vs_improved_bar, plot_baseline_vs_improved_performance_curve
+        from chemcalculations.plot_baseline_vs_improved import (
+            plot_baseline_vs_improved_bar,
+            plot_baseline_vs_improved_performance_curve,
+        )
         plot_baseline_vs_improved_bar(args.output_dir / "baseline_vs_improved_bar.png")
         plot_baseline_vs_improved_performance_curve(args.output_dir / "baseline_vs_improved_performance.png")
     except Exception as e:

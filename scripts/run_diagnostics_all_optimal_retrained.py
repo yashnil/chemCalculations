@@ -60,13 +60,15 @@ def run_diagnostics(run_tag: str, dataset_size: int):
     env["BEST_MODULE"] = str(best_model_path)
     env["OUT_DIR"] = str(diag_dir)
     
-    # Run diagnostics
+    pp = env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = str(SRC_DIR) if not pp else f"{SRC_DIR}{os.pathsep}{pp}"
+
     result = subprocess.run(
-        [sys.executable, str(SRC_DIR / "diagnostics.py")],
+        [sys.executable, "-m", "chemcalculations.diagnostics"],
         env=env,
-        cwd=SRC_DIR,
+        cwd=str(BASE_DIR),
         capture_output=True,
-        text=True
+        text=True,
     )
     
     if result.returncode == 0:

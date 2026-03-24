@@ -19,7 +19,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-BASE_DIR = Path(__file__).resolve().parent.parent
+from chemcalculations._paths import project_root as repo_root
+
+BASE_DIR = repo_root()
 PLOTS_DIR = BASE_DIR / "plots"
 COMPARISON_CSV = PLOTS_DIR / "comparison_metrics.csv"
 

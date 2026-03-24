@@ -51,13 +51,13 @@ def plot_loss_curves(run_tags: List[str], base_dir: Path, output_path: Path, use
     fig, axes = plt.subplots(1, 2, figsize=(14, 5))
     
     # Try multiple base directories as fallback
-    # Assume project root is 2 levels up from src/ or results/
-    script_dir = Path(__file__).resolve().parent
-    project_root = script_dir.parent
+    from chemcalculations._paths import project_root as repo_root
+
+    root = repo_root()
     fallback_dirs = [
         base_dir,
-        project_root / "models" / "archive",
-        project_root / "results" / "runs",
+        root / "models" / "archive",
+        root / "results" / "runs",
     ]
     
     for idx, tag in enumerate(run_tags):
@@ -342,13 +342,16 @@ def main():
                                 "x2400_optimal_retrained", "x3200_optimal_retrained",
                                 "x4000_optimal_retrained", "x4800_optimal_retrained"],
                         help="Run tags to plot loss curves for")
-    parser.add_argument("--base-dir", type=Path, 
-                        default=Path(__file__).resolve().parent.parent / "results" / "runs",
+    from chemcalculations._paths import project_root as _repo_root
+
+    _r = _repo_root()
+    parser.add_argument("--base-dir", type=Path,
+                        default=_r / "results" / "runs",
                         help="Base directory containing run folders")
-    parser.add_argument("--metrics-csv", type=Path, 
-                        default=Path(__file__).resolve().parent.parent / "plots" / "comparison_metrics.csv",
+    parser.add_argument("--metrics-csv", type=Path,
+                        default=_r / "plots" / "comparison_metrics.csv",
                         help="Path to comparison metrics CSV")
-    parser.add_argument("--output-dir", type=Path, default=Path(__file__).resolve().parent.parent / "plots",
+    parser.add_argument("--output-dir", type=Path, default=_r / "plots",
                         help="Output directory for plots")
     args = parser.parse_args()
     

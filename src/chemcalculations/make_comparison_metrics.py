@@ -11,7 +11,10 @@ import json
 from pathlib import Path
 from typing import Dict, Optional
 
-BASE = Path(__file__).resolve().parent
+from chemcalculations._paths import project_root as repo_root
+
+# Legacy archived runs lived under ``src/`` next to these scripts
+BASE = repo_root() / "src"
 
 
 def parse_global_metrics(txt_path: Path) -> Dict[str, float]:

@@ -38,7 +38,9 @@ try:
 except ImportError as exc:  # pragma: no cover
     raise RuntimeError("scikit-learn is required. Please install scikit-learn.") from exc
 
-from autoencoder_model import FlowMapAutoencoder
+from chemcalculations.autoencoder_model import FlowMapAutoencoder
+
+from chemcalculations._paths import project_root as repo_root
 
 
 # ---------------------------------------------------------------------------
@@ -47,7 +49,7 @@ from autoencoder_model import FlowMapAutoencoder
 
 CSV_PATH = os.environ.get(
     "CSV_PATH",
-    str(Path(__file__).resolve().parent.parent / "data" / "datasets" / "all_gas_fastchem_x160.csv"),
+    str(repo_root() / "data" / "datasets" / "all_gas_fastchem_x160.csv"),
 )
 OUT_DIR = Path("results/runs/runs_autoencoder")
 
@@ -227,12 +229,12 @@ def resolve_target_columns(df: pd.DataFrame, input_cols: Sequence[str]) -> List[
         static_path = Path(STATIC_SPECIES_LIST_PATH)
         if not static_path.is_absolute():
             # Relative to configs/ directory
-            project_root = Path(__file__).resolve().parent.parent
+            root = repo_root()
             # If just a filename, assume it's in configs/
             if static_path.parent == Path("."):
-                static_path = project_root / "configs" / static_path.name
+                static_path = root / "configs" / static_path.name
             else:
-                static_path = project_root / static_path
+                static_path = root / static_path
         
         if static_path.exists():
             try:
@@ -466,7 +468,7 @@ import numpy as np
 import torch
 from torch import Tensor
 
-from autoencoder_model import FlowMapAutoencoder
+from chemcalculations.autoencoder_model import FlowMapAutoencoder
 
 INPUT_COLS = {list(input_cols)!r}
 TARGET_COLS = {list(target_cols)!r}
@@ -589,7 +591,7 @@ def apply_config(config: dict) -> None:
     if "data" in config:
         d = config["data"]
         if "csv_path" in d:
-            CSV_PATH = os.environ.get("CSV_PATH", str(Path(__file__).resolve().parent.parent / d["csv_path"]))
+            CSV_PATH = os.environ.get("CSV_PATH", str(repo_root() / d["csv_path"]))
         if "train_frac" in d:
             TRAIN_FRAC = d["train_frac"]
         if "val_frac" in d:

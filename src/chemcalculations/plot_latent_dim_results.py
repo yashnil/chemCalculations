@@ -15,7 +15,8 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import pandas as pd
 
-BASE_DIR = Path(__file__).resolve().parent
+# Legacy study outputs: run dirs under ``src/`` (see training scripts)
+BASE_DIR = Path(__file__).resolve().parent.parent
 
 
 def collect_results(latent_dims: list[int]) -> list[dict]:

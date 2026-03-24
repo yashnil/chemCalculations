@@ -12,18 +12,18 @@ This directory contains JSON configuration files for training the FlowMapAutoenc
 ### Using a config file:
 
 ```bash
-python src/train_autoencoder.py \
+python -m chemcalculations.train_autoencoder \
     --config configs/default_config.json \
     --loss-type huber \
-    --run-dir src/runs_autoencoder_test
+    --run-dir results/runs/runs_autoencoder_test
 ```
 
 ### Without config file (uses module-level constants):
 
 ```bash
-python src/train_autoencoder.py \
+python -m chemcalculations.train_autoencoder \
     --loss-type huber \
-    --run-dir src/runs_autoencoder_test
+    --run-dir results/runs/runs_autoencoder_test
 ```
 
 ## Config Structure

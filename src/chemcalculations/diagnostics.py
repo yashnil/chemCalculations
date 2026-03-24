@@ -31,7 +31,7 @@ except ImportError:
     HAS_SCIPY = False
     warnings.warn("scipy not found; KDE density coloring disabled")
 
-from mfae_metrics import WINSOR_CAP, compute_mfae_from_arrays
+from chemcalculations.mfae_metrics import WINSOR_CAP, compute_mfae_from_arrays
 
 # -----------------------------------------------------------------------------
 # Configuration
