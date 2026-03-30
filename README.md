@@ -1,6 +1,6 @@
 # FastChem Neural Network Emulator
 
-A high-performance machine learning surrogate model for chemical equilibrium calculations in planetary and stellar atmospheres.
+A high-performance machine learning surrogate for FastChem gas-phase equilibrium in **planetary and exoplanet** atmospheres.
 
 [![Python](https://img.shields.io/badge/python-3.9%2B-blue)](https://www.python.org/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.0%2B-red)](https://pytorch.org/)
@@ -52,114 +52,24 @@ A high-performance machine learning surrogate model for chemical equilibrium cal
 
 ## Problem Statement
 
-### The Computational Bottleneck in Atmospheric Modeling
+[FastChem](https://github.com/exoclime/FastChem) computes **gas-phase chemical equilibrium** (species abundances vs. temperature, pressure, and elemental composition). It is accurate but **expensive per evaluation** (order **~1–2 ms** with engine reuse in this repo’s benchmarks; see `scripts/fast_inference.py`). That cost adds up for retrievals, large grids, or many forward calls.
 
-Chemical equilibrium calculations are fundamental to understanding planetary and stellar atmospheres. These calculations determine the abundances of hundreds of molecular and atomic species (H₂, H₂O, CO, CH₄, NH₃, etc.) as functions of:
-- **Temperature** (100–3000 K)
-- **Pressure** (10⁻¹⁰–10⁵ bar)
-- **Elemental composition** (H, He, C, N, O, S, metals)
-
-### What is FastChem?
-
-[FastChem](https://github.com/exoclime/FastChem) is a state-of-the-art chemical equilibrium solver developed by Stock, Kitzmann, and Patzer (2018) for calculating gas-phase chemical abundances in planetary and stellar atmospheres. 
-
-**Core Functionality**: FastChem solves the system of non-linear equations that govern chemical equilibrium:
-
-- **Mass conservation**: Total abundance of each element is conserved across all species
-- **Charge neutrality**: Total positive and negative charges balance (important for ionized gases)
-- **Equilibrium constants**: Species abundances follow temperature-dependent equilibrium relations (K(T) = exp(-ΔG/RT))
-
-**Technical Implementation**:
-- Uses an iterative Newton-Raphson solver to find the equilibrium state
-- Handles hundreds of species and reactions simultaneously
-- Supports both neutral and ionized gas-phase chemistry
-- Includes thermodynamic data from NIST and other sources
-- Validated against experimental data and other equilibrium codes
-
-**Applications**: FastChem is widely used in:
-- **Exoplanet atmospheric retrievals** (JWST, HST observations) - analyzing transmission/emission spectra
-- **Brown dwarf and hot Jupiter climate models** (3D GCMs) - coupling chemistry with radiative transfer
-- **Stellar atmosphere modeling** - determining molecular opacities
-- **Planetary formation studies** - tracking chemical evolution during disk formation
-
-**The Problem**: FastChem is accurate (ground truth) but **computationally expensive**: ~2 ms per evaluation with engine reuse, ~6 ms with a fresh engine (measured). This becomes prohibitive when millions to billions of evaluations are needed for:
-- Bayesian retrievals requiring millions of forward model evaluations
-- 3D climate models needing chemistry at every grid point and timestep
-- Population studies analyzing thousands of exoplanets
-- Real-time analysis during telescope observations
-
-### Why This Matters
-
-Modern astrophysical applications require **millions to billions** of chemistry evaluations:
-
-| Application | Evaluations Needed | Time with FastChem | ML Emulator (CPU) | ML Emulator (GPU) |
-|-------------|-------------------|--------------------|-----------------------|-----|
-| **1D Atmospheric Profile** | ~10⁴ | 13 seconds | **0.05 seconds** | **0.009 seconds** |
-| **Exoplanet Retrieval** | ~10⁷ | 3.6 hours | **51 seconds** | **9 seconds** |
-| **3D GCM Simulation** | ~10⁹ | 14.9 days | **1.4 hours** | **14 minutes** |
-| **Population Study** | ~10¹⁰ | 149 days | **14 hours** | **2.4 hours** |
-
-*FastChem: 1.3 ms/eval (engine reuse). CPU: 0.005 ms/eval (batch 10K). GPU: 0.0009 ms/eval (MPS, batch 10K). Measured on Apple M1 Max. See `scripts/fast_inference.py`.*
-
-**The bottleneck**: Chemical equilibrium calculations dominate runtime in:
-- JWST/HST atmospheric retrievals
-- Brown dwarf and hot Jupiter climate models
-- Exoplanet population studies
-- Real-time analysis during observations
-
-**We need a solution that is both fast AND accurate.**
+**This repository** trains a **PyTorch emulator** that maps **(T, P, five elemental abundances in dex)** to **33 species number densities (cm⁻³)** to match FastChem on the training distribution. Scope here is **planetary / exoplanet atmosphere** use cases reflected in the dataset and validation (not a general stellar-atmosphere product).
 
 ---
 
 ## Project Goals
 
-### Primary Objective
-
-**Develop a high-accuracy, high-speed neural network emulator for FastChem** that enables previously infeasible scientific applications while maintaining the accuracy required for publication-quality research.
-
-### Specific Goals
-
-1. **Speed**: Achieve >10× speed-up over FastChem (measured: ~250× CPU, ~1,500× GPU)
-2. **Accuracy**: Maintain Log R² > 0.999 (99.9% variance explained)
-3. **Robustness**: Handle full parameter space (750-3000 K, 10⁻¹⁰-10⁵ bar)
-4. **Scalability**: Performance improves with dataset size
-5. **Reproducibility**: Consistent architecture and training across all dataset sizes
-6. **Production-Ready**: Self-contained inference, comprehensive diagnostics, easy integration
-
-### Success Criteria
-
-✅ **Achieved**: Log R² = 0.9999, ~1,500× speed-up on GPU (measured), 45% Log MAE improvement from 800K→4800K  
-✅ **Achieved**: Production-ready with comprehensive validation  
-✅ **Achieved**: Consistent architecture enabling fair comparison across dataset sizes  
-✅ **Complete**: Asymptote study at 800K increments (800, 1600, 2400, 3200, 4000, 4800) — performance plateau confirmed at ~3200K
+1. **Speed** — Large throughput gains vs FastChem on CPU/GPU (see benchmarks; numbers are hardware-dependent).
+2. **Accuracy** — Strong log-space metrics on the held-out setup (Log R², Log MAE, MFAE; [Performance Metrics](#performance-metrics)).
+3. **Coverage** — Train for the project’s physical range (e.g. ~750–3000 K, 10⁻¹⁰–10⁵ bar).
+4. **Reproducibility** — Packaged training, diagnostics, and comparison tables (`plots/comparison_metrics.csv`).
 
 ---
 
 ## Solution Overview
 
-### Neural Network Emulator Approach
-
-We replace the iterative FastChem solver with a **trained neural network** that:
-
-✅ **Exceeds baseline accuracy**: Log R² = 0.9999 (99.99% variance explained), Log MAE = 0.0039 dex (x4800_improved)  
-✅ **Achieves ~1,500× speed-up on GPU**: 1.3 ms → 0.0009 ms per evaluation on MPS (Apple Silicon); ~250× on CPU  
-✅ **Handles full parameter space**: 750–3000 K, 10⁻¹⁰–10⁵ bar  
-✅ **Focuses on important species**: Predicts 33 species (32 + electrons, 99.68% mass coverage)  
-✅ **Eliminates artifacts**: Zero vertical striping through aggressive low-T filtering (T > 750K)  
-✅ **Is production-ready**: PyTorch FlowMapAutoencoder, self-contained inference, comprehensive validation  
-✅ **Scales with data**: Performance improves from 800K to 4800K samples (45% Log MAE reduction), with plateau confirmed at ~3200K  
-✅ **Improved training**: AdamW optimizer + train-only normalization yield ~71% lower Log MAE than baseline (x4800_improved vs x4800_optimal_retrained)  
-
-### Key Design Principles
-
-1. **Rich input representation**: 7 core features (T, P, 5 elements) expandable to 30+ with metals
-2. **Static species ordering**: Fixed 33-species list (32 + e-) ordered by mean abundance (99.68% coverage)
-3. **Simple normalization**: Physical constants (T/4000, (abund_dex-12)/10)
-4. **Log-ratio loss**: Direct log-space error minimization for numerical stability
-5. **Data quality**: Filter low-temperature samples that cause prediction artifacts
-6. **Robust validation**: Comprehensive diagnostics suite with parity plots
-
-**Philosophy**: Give the model good data, keep transformations simple, focus on what matters.
+A **FlowMapAutoencoder** (encoder → latent dynamics → decoder) replaces the iterative solver at inference time. Training uses log-ratio loss and config-driven normalization; see [Model Architecture](#model-architecture) and `configs/`. The best reported run (**x4800_improved**) reaches Log R² ≈ 0.9999 with large speedups vs FastChem in this repo’s GPU/CPU timings. Outputs use a **fixed 33-species ordering**; low-temperature samples are filtered in training data where noted in the methods sections below.
 
 ---
 
@@ -429,6 +339,8 @@ chemCalculations/
 └── README.md                       # This file
 ```
 
+**Why the clone can feel large:** Git tracks **PNG figures** under `plots/` (many are ~0.1–0.7 MB each) plus small **thermodynamic tables** in `data/fastchem_data/`. Training CSVs, checkpoints, and `results/` are **not** tracked (see `.gitignore`). The file `plots/worst100_samples.csv` is listed in `.gitignore` so it is not re-added after diagnostics runs.
+
 ---
 
 ## Quick Start
@@ -526,6 +438,12 @@ results = pd.DataFrame(y_linear, columns=TARGET_COLS)
 print("Top-5 most abundant species:")
 print(results.iloc[0].sort_values(ascending=False).head(5))
 ```
+
+### Batch size and 1D profiles
+
+- **Training:** `batch_size` comes from your JSON config (typical range **256–4096**, limited by GPU memory).
+- **Inference:** There is **no required batch size**. The network uses the first dimension as **N** independent conditions; `normalize_inputs` / `forward_autoencoder` accept **any N ≥ 1**. A **full 1D profile** (N altitude layers with one `(T, P, abundances…)` row each) is **one forward pass** with shape **(N, 7)** after normalization—**dynamic N** is the normal way to amortize work. The only limit is **available memory**; for huge N, split into chunks.
+- **Benchmarks:** `scripts/fast_inference.py` uses batch sizes **1 … 100,000** to report throughput (per-sample time depends on device and N).
 
 ---
 

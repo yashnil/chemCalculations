@@ -24,6 +24,9 @@ models/*.pth
 !plots/*.png
 !plots/*.csv
 
+# Large regenerated diagnostic dump (optional; keep out of clone if preferred)
+plots/worst100_samples.csv
+
 # FastChem job outputs
 scripts/data_generation/fastchem_jobs_*/
 
@@ -32,12 +35,18 @@ scripts/data_generation/fastchem_jobs_*/
 .vscode/
 .idea/
 *.swp
-*.swo# Jupyter
+*.swo
+
+# Jupyter
 .ipynb_checkpoints/
-*.ipynb# Environment
+*.ipynb
+
+# Environment
 venv/
 env/
-.venv/# History/archived versions
+.venv/
+
+# History/archived versions
 history/
 artefacts/
 results/
