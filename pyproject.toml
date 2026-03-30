@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "chemcalculations"
-version = "0.1.0"
+version = "0.1.1"
 description = "PyTorch neural network emulator for FastChem gas-phase chemical equilibrium in planetary and exoplanet atmospheres."
 readme = "README.md"
 requires-python = ">=3.9"

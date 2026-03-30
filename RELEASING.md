@@ -71,6 +71,12 @@ This project is published as **`chemcalculations`** on [PyPI](https://pypi.org/p
 
    When prompted, username: **`__token__`**, password: **your PyPI API token** (including the `pypi-` prefix).
 
+   **Non-interactive** (CI or scripts; never commit the token):
+
+   ```bash
+   TWINE_USERNAME=__token__ TWINE_PASSWORD='pypi-...your-token...' twine upload dist/*
+   ```
+
 8. **Verify** the project page: `https://pypi.org/project/chemcalculations/`
 
 ## Troubleshooting

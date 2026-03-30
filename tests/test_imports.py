@@ -7,7 +7,7 @@ def test_version():
     import chemcalculations
 
     assert hasattr(chemcalculations, "__version__")
-    assert chemcalculations.__version__ == "0.1.0"
+    assert chemcalculations.__version__ == "0.1.1"
 
 
 def test_project_root():

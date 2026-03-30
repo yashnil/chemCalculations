@@ -24,6 +24,6 @@ from __future__ import annotations
 
 from ._paths import project_root
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 __all__ = ["__version__", "project_root"]
